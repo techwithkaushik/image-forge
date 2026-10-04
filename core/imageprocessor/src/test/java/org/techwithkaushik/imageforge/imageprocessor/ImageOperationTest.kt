@@ -69,6 +69,52 @@ public class ImageOperationTest {
     }
 
     @Test
+    public fun rotateAcceptsQuarterTurns() {
+        assertEquals(90, ImageOperation.Rotate(90).degrees)
+        assertEquals(180, ImageOperation.Rotate(180).degrees)
+        assertEquals(270, ImageOperation.Rotate(270).degrees)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    public fun rotateRejectsNonQuarterTurn() {
+        ImageOperation.Rotate(45)
+    }
+
+    @Test
+    public fun flipAcceptsSingleAxis() {
+        assertEquals(true, ImageOperation.Flip(horizontal = true).horizontal)
+        assertEquals(true, ImageOperation.Flip(vertical = true).vertical)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    public fun flipRejectsNoAxis() {
+        ImageOperation.Flip()
+    }
+
+    @Test
+    public fun colorAdjustDefaultsAreNeutral() {
+        val operation = ImageOperation.ColorAdjust()
+        assertEquals(0f, operation.brightness)
+        assertEquals(1f, operation.contrast)
+        assertEquals(1f, operation.saturation)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    public fun colorAdjustRejectsBrightnessOutsideRange() {
+        ImageOperation.ColorAdjust(brightness = 1.01f)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    public fun colorAdjustRejectsContrastOutsideRange() {
+        ImageOperation.ColorAdjust(contrast = 2.01f)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    public fun colorAdjustRejectsSaturationOutsideRange() {
+        ImageOperation.ColorAdjust(saturation = 2.01f)
+    }
+
+    @Test
     public fun compressionDefaultsToUnderTargetJpeg() {
         val operation = ImageOperation.Compress(50_000)
         assertEquals(ImageOperation.CompressionMode.UNDER_TARGET, operation.mode)

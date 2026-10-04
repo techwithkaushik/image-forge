@@ -29,12 +29,14 @@ public data class ImageArtifact(
 
 public sealed interface ImageOperation {
     public data object Inspect : ImageOperation
+
     public data class Resize(val width: Int, val height: Int) : ImageOperation {
         init {
             require(width > 0)
             require(height > 0)
         }
     }
+
     public data class Crop(val left: Int, val top: Int, val width: Int, val height: Int) : ImageOperation {
         init {
             require(left >= 0)
@@ -43,9 +45,37 @@ public sealed interface ImageOperation {
             require(height > 0)
         }
     }
+
     public data class Convert(val mimeType: String) : ImageOperation {
         init {
             require(ImageFormatPolicy.isSupportedOutput(mimeType))
+        }
+    }
+
+    public data class Rotate(val degrees: Int) : ImageOperation {
+        init {
+            require(degrees == 90 || degrees == 180 || degrees == 270)
+        }
+    }
+
+    public data class Flip(
+        val horizontal: Boolean = false,
+        val vertical: Boolean = false,
+    ) : ImageOperation {
+        init {
+            require(horizontal || vertical)
+        }
+    }
+
+    public data class ColorAdjust(
+        val brightness: Float = 0f,
+        val contrast: Float = 1f,
+        val saturation: Float = 1f,
+    ) : ImageOperation {
+        init {
+            require(brightness in -1f..1f)
+            require(contrast in 0f..2f)
+            require(saturation in 0f..2f)
         }
     }
 
