@@ -43,7 +43,11 @@ public sealed interface ImageOperation {
             require(height > 0)
         }
     }
-    public data class Convert(val mimeType: String) : ImageOperation
+    public data class Convert(val mimeType: String) : ImageOperation {
+        init {
+            require(ImageFormatPolicy.isSupportedOutput(mimeType))
+        }
+    }
 
     public enum class CompressionMode {
         UNDER_TARGET,
