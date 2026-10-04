@@ -12,15 +12,17 @@ public data class BatchImageInput(
     }
 }
 
-public data class BatchProcessingRequest(
-    val items: List<BatchImageInput>,
-    val operation: ImageOperation,
-    val metadataPolicy: MetadataPolicy = MetadataPolicy.PRESERVE_SUPPORTED,
-    val maxRetries: Int = 0,
+public class BatchProcessingRequest(
+    items: List<BatchImageInput>,
+    public val operation: ImageOperation,
+    public val metadataPolicy: MetadataPolicy = MetadataPolicy.PRESERVE_SUPPORTED,
+    public val maxRetries: Int = 0,
 ) {
+    public val items: List<BatchImageInput> = items.toList()
+
     init {
-        require(items.isNotEmpty()) { "Batch must contain at least one image." }
-        require(items.map(BatchImageInput::id).distinct().size == items.size) {
+        require(this.items.isNotEmpty()) { "Batch must contain at least one image." }
+        require(this.items.map(BatchImageInput::id).distinct().size == this.items.size) {
             "Batch item ids must be unique."
         }
         require(maxRetries in 0..3) { "maxRetries must be between 0 and 3." }
@@ -51,9 +53,9 @@ public sealed interface BatchItemOutcome {
     ) : BatchItemOutcome
 }
 
-public data class BatchProcessingResult(
-    val outcomes: List<BatchItemOutcome>,
-) {
+public class BatchProcessingResult(outcomes: List<BatchItemOutcome>) {
+    public val outcomes: List<BatchItemOutcome> = outcomes.toList()
+
     public val successes: List<BatchItemOutcome.Success>
         get() = outcomes.filterIsInstance<BatchItemOutcome.Success>()
 
