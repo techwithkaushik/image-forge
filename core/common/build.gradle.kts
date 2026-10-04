@@ -13,5 +13,5 @@ android {
 
 
 dependencies {
-    testImplementation(kotlin("test"))
+    testImplementation("org.jetbrains.kotlin:kotlin-test:2.2.10")
 }
