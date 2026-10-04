@@ -1,18 +1,16 @@
 package org.techwithkaushik.imageforge.vision
 
+import android.graphics.Bitmap
 import android.graphics.Rect
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import org.opencv.android.OpenCVLoader
+import org.opencv.android.Utils
 import org.opencv.core.Mat
 import org.opencv.core.MatOfPoint
-import org.opencv.core.Point
+import org.opencv.core.MatOfPoint2f
 import org.opencv.core.Size
 import org.opencv.imgproc.Imgproc
-import org.opencv.android.Utils
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import kotlin.coroutines.cancellation.CancellationException
 
 public class AndroidOpenCvContourDetector : ContourDetector {
     override suspend fun detect(
@@ -54,29 +52,42 @@ public class AndroidOpenCvContourDetector : ContourDetector {
                 Imgproc.RETR_EXTERNAL,
                 Imgproc.CHAIN_APPROX_SIMPLE,
             )
+            currentCoroutineContext().ensureActive()
 
-            return contours.asSequence()
-                .map { contour ->
-                    currentCoroutineContext().ensureActive()
-                    val area = Imgproc.contourArea(contour)
-                    if (area < options.minAreaPx) return@map null
-                    val bounds = Imgproc.boundingRect(contour)
-                    val perimeter = Imgproc.arcLength(
-                        org.opencv.core.MatOfPoint2f(*contour.toArray()),
-                        true,
-                    )
-                    VisionContour(
-                        bounds = Rect(bounds.x, bounds.y, bounds.x + bounds.width, bounds.y + bounds.height),
-                        areaPx = area,
-                        perimeterPx = perimeter,
-                        points = contour.toArray().map { VisionPoint(it.x, it.y) },
-                    )
+            val result = ArrayList<VisionContour>(minOf(contours.size, options.maxContours))
+            for (contour in contours) {
+                currentCoroutineContext().ensureActive()
+
+                val area = Imgproc.contourArea(contour)
+                if (area < options.minAreaPx) continue
+
+                val bounds = Imgproc.boundingRect(contour)
+                val points = contour.toArray()
+                val curve = MatOfPoint2f(*points)
+                val perimeter = try {
+                    Imgproc.arcLength(curve, true)
+                } finally {
+                    curve.release()
                 }
-                .filterNotNull()
+
+                result += VisionContour(
+                    bounds = Rect(
+                        bounds.x,
+                        bounds.y,
+                        bounds.x + bounds.width,
+                        bounds.y + bounds.height,
+                    ),
+                    areaPx = area,
+                    perimeterPx = perimeter,
+                    points = points.map { VisionPoint(it.x, it.y) },
+                )
+            }
+
+            return result
                 .sortedByDescending { it.areaPx }
                 .take(options.maxContours)
         } finally {
-            contours.forEach { it.release() }
+            contours.forEach(MatOfPoint::release)
             hierarchy.release()
             edges.release()
             gray.release()
