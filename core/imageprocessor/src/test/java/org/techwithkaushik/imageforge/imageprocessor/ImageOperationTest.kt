@@ -1,5 +1,6 @@
 package org.techwithkaushik.imageforge.imageprocessor
 
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 public class ImageOperationTest {
@@ -16,8 +17,8 @@ public class ImageOperationTest {
     @Test
     public fun compressionDefaultsToUnderTargetJpeg() {
         val operation = ImageOperation.Compress(50_000)
-        assert(operation.mode == ImageOperation.CompressionMode.UNDER_TARGET)
-        assert(operation.mimeType == "image/jpeg")
+        assertEquals(ImageOperation.CompressionMode.UNDER_TARGET, operation.mode)
+        assertEquals("image/jpeg", operation.mimeType)
     }
 
     @Test(expected = IllegalArgumentException::class)
