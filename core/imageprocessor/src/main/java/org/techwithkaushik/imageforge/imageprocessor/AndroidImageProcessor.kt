@@ -110,12 +110,39 @@ public class AndroidImageProcessor(
                 is ImageOperation.Resize -> resize(decoded, operation.width, operation.height)
                 is ImageOperation.Crop -> decoded
                 is ImageOperation.Convert -> decoded
+                is ImageOperation.Compress -> decoded
                 ImageOperation.Inspect -> decoded
             }
 
             if (processed !== decoded) ownedBitmaps += processed
 
             coroutineContext.ensureActive()
+
+            if (operation is ImageOperation.Compress) {
+                onProgress(ProcessingProgress(75, 100, "Finding target size"))
+                val width = processed.width
+                val height = processed.height
+                val compressed = compressToTarget(processed, operation)
+                    ?: return@withContext ForgeResult.Failure(
+                        ForgeError.ProcessingFailed(
+                            "The requested target size could not be satisfied exactly or under the target.",
+                        ),
+                    )
+                outputFile = compressed.file
+                onProgress(ProcessingProgress(100, 100, "Complete"))
+                return@withContext ForgeResult.Success(
+                    ImageArtifact(
+                        uri = compressed.uri,
+                        metadata = ImageMetadata(
+                            width = width,
+                            height = height,
+                            mimeType = operation.mimeType.lowercase(),
+                            byteCount = compressed.byteCount,
+                        ),
+                    ),
+                )
+            }
+
             onProgress(ProcessingProgress(75, 100, "Encoding output"))
 
             val mimeType = when (operation) {
@@ -273,7 +300,52 @@ public class AndroidImageProcessor(
         val byteCount: Long,
     )
 
-    private fun encode(bitmap: Bitmap, mimeType: String): EncodedOutput {
+    private suspend fun compressToTarget(
+        bitmap: Bitmap,
+        operation: ImageOperation.Compress,
+    ): EncodedOutput? {
+        var low = 1
+        var high = 100
+        var best: EncodedOutput? = null
+        var bestSize = -1L
+
+        while (low <= high) {
+            coroutineContext.ensureActive()
+            val quality = (low + high) ushr 1
+            val candidate = encode(bitmap, operation.mimeType.lowercase(), quality)
+            when {
+                candidate.byteCount == operation.targetBytes -> {
+                    best?.file?.delete()
+                    return candidate
+                }
+                candidate.byteCount < operation.targetBytes -> {
+                    if (candidate.byteCount > bestSize) {
+                        best?.file?.delete()
+                        best = candidate
+                        bestSize = candidate.byteCount
+                    } else {
+                        candidate.file.delete()
+                    }
+                    low = quality + 1
+                }
+                else -> {
+                    candidate.file.delete()
+                    high = quality - 1
+                }
+            }
+        }
+
+        return when (operation.mode) {
+            ImageOperation.CompressionMode.UNDER_TARGET,
+            ImageOperation.CompressionMode.CLOSEST_TO_TARGET -> best
+            ImageOperation.CompressionMode.EXACT_BYTES -> {
+                best?.file?.delete()
+                null
+            }
+        }
+    }
+
+    private fun encode(bitmap: Bitmap, mimeType: String, quality: Int = 92): EncodedOutput {
         cacheDir.mkdirs()
         val extension = when (mimeType) {
             "image/png" -> "png"
@@ -295,7 +367,7 @@ public class AndroidImageProcessor(
         }
         try {
             FileOutputStream(file).use { output ->
-                check(bitmap.compress(format, 92, output)) { "Unable to encode image." }
+                check(bitmap.compress(format, quality, output)) { "Unable to encode image." }
             }
             return EncodedOutput(
                 file = file,
