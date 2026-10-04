@@ -96,7 +96,10 @@ public class AndroidImageProcessor(
 
             val mimeType = when (operation) {
                 is ImageOperation.Convert -> operation.mimeType.lowercase()
-                else -> request.input.mimeType ?: resolver.getType(request.input.uri) ?: "image/jpeg"
+                else -> when (request.input.mimeType ?: resolver.getType(request.input.uri)) {
+                    "image/png", "image/webp", "image/jpeg" -> request.input.mimeType ?: resolver.getType(request.input.uri)!!
+                    else -> "image/jpeg"
+                }
             }
             val output = encode(processed, mimeType)
             processed.recycle()
@@ -198,8 +201,8 @@ public class AndroidImageProcessor(
         val extension = when (mimeType) {
             "image/png" -> "png"
             "image/webp" -> "webp"
-            "image/heic", "image/heif" -> "heic"
-            else -> "jpg"
+            "image/jpeg" -> "jpg"
+            else -> throw IllegalArgumentException("Unsupported output MIME type: $mimeType")
         }
         val file = File.createTempFile("forge-", ".$extension", cacheDir)
         val format = when (mimeType) {
