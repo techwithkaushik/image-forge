@@ -8,7 +8,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import org.techwithkaushik.imageforge.designsystem.ImageForgeTheme
-import org.techwithkaushik.imageforge.feature.dashboard.DashboardScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,7 +22,7 @@ class MainActivity : ComponentActivity() {
 private fun ImageForgeApp() {
     ImageForgeTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
-            DashboardScreen()
+            ImageForgeNavHost()
         }
     }
 }
