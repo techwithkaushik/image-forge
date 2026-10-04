@@ -210,11 +210,8 @@ public class AndroidImageProcessor(
                 @Suppress("DEPRECATION")
                 Bitmap.CompressFormat.WEBP
             }
-            "image/heic", "image/heif" -> {
-                if (android.os.Build.VERSION.SDK_INT >= 29) Bitmap.CompressFormat.HEIC
-                else Bitmap.CompressFormat.JPEG
-            }
-            else -> Bitmap.CompressFormat.JPEG
+            "image/jpeg" -> Bitmap.CompressFormat.JPEG
+            else -> throw IllegalArgumentException("Unsupported output MIME type: $mimeType")
         }
         FileOutputStream(file).use { output ->
             check(bitmap.compress(format, 92, output)) { "Unable to encode image." }
