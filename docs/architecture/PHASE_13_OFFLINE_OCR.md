@@ -16,7 +16,7 @@ Each request explicitly selects one script through OcrOptions.script. This avoid
 - ML Kit receives the URI through InputImage.fromFilePath.
 - Recognition is exposed as a suspend API.
 - The recognizer is closed after each request.
-- Cancellation maps to ForgeError.Cancelled.
+- Coroutine cancellation propagates normally; the processor never swallows structured cancellation.
 - Recognition failures map to ForgeError.ProcessingFailed.
 - No network fallback or model download is initiated.
 
