@@ -139,6 +139,26 @@ public class AndroidStorageGateway(
             }
         }
 
+    override suspend fun releaseTreePermission(treeUri: Uri): ForgeResult<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                resolver.releasePersistableUriPermission(
+                    treeUri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+                ForgeResult.Success(Unit)
+            } catch (e: SecurityException) {
+                ForgeResult.Failure(
+                    ForgeError.StorageFailed("The selected folder permission could not be released.", e),
+                )
+            } catch (e: Exception) {
+                ForgeResult.Failure(
+                    ForgeError.StorageFailed("Unable to release folder access.", e),
+                )
+            }
+        }
+
     override fun hasPersistedTreePermission(treeUri: Uri): Boolean =
         resolver.persistedUriPermissions.any { it.uri == treeUri && it.isWritePermission }
 
