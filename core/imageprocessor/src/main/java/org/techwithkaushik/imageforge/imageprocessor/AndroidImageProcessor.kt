@@ -48,12 +48,27 @@ public class AndroidImageProcessor(
                 }
             }
 
-            if (operation is ImageOperation.Resize &&
-                operation.width.toLong() * operation.height.toLong() > policy.maxOutputPixels
-            ) {
-                return@withContext ForgeResult.Failure(
-                    ForgeError.InvalidInput("Requested output is larger than the configured pixel budget."),
-                )
+            if (operation is ImageOperation.Resize) {
+                val requestedPixels = operation.width.toLong() * operation.height.toLong()
+                if (requestedPixels > policy.maxOutputPixels ||
+                    requestedPixels > policy.maxDecodePixels ||
+                    requestedPixels * 4L > policy.maxBitmapBytes
+                ) {
+                    return@withContext ForgeResult.Failure(
+                        ForgeError.InvalidInput("Requested resize exceeds the configured bitmap memory budget."),
+                    )
+                }
+            }
+
+            if (operation is ImageOperation.Crop) {
+                val cropPixels = operation.width.toLong() * operation.height.toLong()
+                if (cropPixels > policy.maxDecodePixels ||
+                    cropPixels * 4L > policy.maxBitmapBytes
+                ) {
+                    return@withContext ForgeResult.Failure(
+                        ForgeError.InvalidInput("Requested crop exceeds the configured bitmap memory budget."),
+                    )
+                }
             }
 
             if (operation is ImageOperation.Inspect) {
@@ -74,6 +89,12 @@ public class AndroidImageProcessor(
             onProgress(ProcessingProgress(20, 100, "Decoding image"))
 
             val decoded = when (operation) {
+                is ImageOperation.Resize -> decodeForResize(
+                    request.input.uri,
+                    bounds,
+                    operation.width,
+                    operation.height,
+                )
                 is ImageOperation.Crop -> decodeCrop(request.input.uri, operation, bounds)
                 else -> decodeSampled(request.input.uri, bounds)
             } ?: return@withContext ForgeResult.Failure(
@@ -159,6 +180,27 @@ public class AndroidImageProcessor(
     }
 
     @Suppress("DEPRECATION")
+    private fun decodeForResize(
+        uri: Uri,
+        bounds: BitmapFactory.Options,
+        targetWidth: Int,
+        targetHeight: Int,
+    ): Bitmap? {
+        val sample = calculateSampleSizeForTarget(
+            bounds.outWidth,
+            bounds.outHeight,
+            targetWidth,
+            targetHeight,
+        )
+        return resolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.Options().apply {
+                inSampleSize = sample
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }.let { options -> BitmapFactory.decodeStream(input, null, options) }
+        }
+    }
+
+    @Suppress("DEPRECATION")
     private fun decodeCrop(
         uri: Uri,
         crop: ImageOperation.Crop,
@@ -169,9 +211,8 @@ public class AndroidImageProcessor(
         } ?: return null
 
         return try {
-            val sample = calculateSampleSize(crop.width, crop.height)
             BitmapFactory.Options().apply {
-                inSampleSize = sample
+                inSampleSize = 1
                 inPreferredConfig = Bitmap.Config.ARGB_8888
             }.let { options ->
                 regionDecoder.decodeRegion(
@@ -191,10 +232,28 @@ public class AndroidImageProcessor(
 
     private fun calculateSampleSize(width: Int, height: Int): Int {
         var sample = 1
-        while (width.toLong() / sample * (height.toLong() / sample) > policy.maxDecodePixels ||
+        while (
+            width.toLong() / sample * (height.toLong() / sample) > policy.maxDecodePixels ||
             width.toLong() / sample * (height.toLong() / sample) * 4L > policy.maxBitmapBytes
         ) {
             sample *= 2
+        }
+        return sample
+    }
+
+    private fun calculateSampleSizeForTarget(
+        width: Int,
+        height: Int,
+        targetWidth: Int,
+        targetHeight: Int,
+    ): Int {
+        var sample = 1
+        while (true) {
+            val next = sample * 2
+            val decodedWidth = (width + next - 1L) / next
+            val decodedHeight = (height + next - 1L) / next
+            if (decodedWidth < targetWidth || decodedHeight < targetHeight) break
+            sample = next.toInt()
         }
         return sample
     }
