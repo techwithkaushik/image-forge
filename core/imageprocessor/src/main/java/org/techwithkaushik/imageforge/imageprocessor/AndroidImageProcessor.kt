@@ -102,6 +102,8 @@ public class AndroidImageProcessor(
                 }
             }
             val output = encode(processed, mimeType)
+            val outputWidth = processed.width
+            val outputHeight = processed.height
             processed.recycle()
 
             coroutineContext.ensureActive()
@@ -109,12 +111,12 @@ public class AndroidImageProcessor(
 
             ForgeResult.Success(
                 ImageArtifact(
-                    uri = output.first,
+                    uri = output.uri,
                     metadata = ImageMetadata(
-                        width = output.second.width,
-                        height = output.second.height,
+                        width = outputWidth,
+                        height = outputHeight,
                         mimeType = mimeType,
-                        byteCount = output.third,
+                        byteCount = output.byteCount,
                     ),
                 ),
             )
@@ -196,7 +198,12 @@ public class AndroidImageProcessor(
         return Bitmap.createScaledBitmap(source, width, height, true)
     }
 
-    private fun encode(bitmap: Bitmap, mimeType: String): Triple<Uri, Bitmap, Long> {
+    private data class EncodedOutput(
+        val uri: Uri,
+        val byteCount: Long,
+    )
+
+    private fun encode(bitmap: Bitmap, mimeType: String): EncodedOutput {
         cacheDir.mkdirs()
         val extension = when (mimeType) {
             "image/png" -> "png"
@@ -219,7 +226,10 @@ public class AndroidImageProcessor(
         FileOutputStream(file).use { output ->
             check(bitmap.compress(format, 92, output)) { "Unable to encode image." }
         }
-        return Triple(Uri.fromFile(file), bitmap, file.length())
+        return EncodedOutput(
+            uri = Uri.fromFile(file),
+            byteCount = file.length(),
+        )
     }
 
     private fun querySize(uri: Uri): Long =
