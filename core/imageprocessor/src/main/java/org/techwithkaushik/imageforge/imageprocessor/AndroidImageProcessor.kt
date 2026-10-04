@@ -299,6 +299,9 @@ public class AndroidImageProcessor(
             bottom <= sourceHeight.toLong()
     }
 
+    private fun cropBitmap(source: Bitmap, crop: ImageOperation.Crop): Bitmap =
+        Bitmap.createBitmap(source, crop.left, crop.top, crop.width, crop.height)
+
     private fun readBounds(uri: Uri): BitmapFactory.Options? =
         resolver.openInputStream(uri)?.use { input ->
             BitmapFactory.Options().also { options ->
