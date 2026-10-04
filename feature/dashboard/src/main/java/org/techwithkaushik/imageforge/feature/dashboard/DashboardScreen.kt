@@ -20,27 +20,17 @@ import org.techwithkaushik.imageforge.designsystem.ForgeScreenSurface
 public fun DashboardScreen(
     onImportImage: () -> Unit = {},
     onOpenEditor: () -> Unit = {},
+    onOpenDocuments: () -> Unit = {},
 ) {
     ForgeScreenSurface {
         Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("ImageForge") },
-                )
-            },
+            topBar = { TopAppBar(title = { Text("ImageForge") }) },
         ) { padding ->
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text(
-                    "Offline image studio",
-                    style = MaterialTheme.typography.headlineSmall,
-                )
+                Text("Offline image studio", style = MaterialTheme.typography.headlineSmall)
                 Text(
                     "Compress, resize, crop and convert images on your device.",
                     style = MaterialTheme.typography.bodyLarge,
@@ -57,6 +47,12 @@ public fun DashboardScreen(
                     description = "The editor will provide production image operations without uploading your files.",
                     actionLabel = "Open editor",
                     onAction = onOpenEditor,
+                )
+                ForgeActionCard(
+                    title = "Document tools",
+                    description = "Passport, signature, PDF and OCR workflows are grouped in the document workspace.",
+                    actionLabel = "Open documents",
+                    onAction = onOpenDocuments,
                 )
                 Text(
                     "Your images stay on your device during processing.",
