@@ -31,7 +31,7 @@ public class AndroidImageProcessor(
     ): ForgeResult<ImageArtifact> = withContext(Dispatchers.IO) {
         try {
             coroutineContext.ensureActive()
-            onProgress(ProcessingProgress(0, "Inspecting image"))
+            onProgress(ProcessingProgress(0, 100, "Inspecting image"))
 
             val bounds = readBounds(request.input.uri)
                 ?: return@withContext ForgeResult.Failure(
@@ -72,7 +72,7 @@ public class AndroidImageProcessor(
             }
 
             coroutineContext.ensureActive()
-            onProgress(ProcessingProgress(20, "Decoding image"))
+            onProgress(ProcessingProgress(20, 100, "Decoding image"))
 
             val decoded = when (operation) {
                 is ImageOperation.Crop -> decodeCrop(request.input.uri, operation, bounds)
@@ -82,7 +82,7 @@ public class AndroidImageProcessor(
             )
 
             coroutineContext.ensureActive()
-            onProgress(ProcessingProgress(55, "Applying operation"))
+            onProgress(ProcessingProgress(55, 100, "Applying operation"))
 
             val processed = when (operation) {
                 is ImageOperation.Resize -> resize(decoded, operation.width, operation.height)
@@ -94,7 +94,7 @@ public class AndroidImageProcessor(
             if (processed !== decoded) decoded.recycle()
 
             coroutineContext.ensureActive()
-            onProgress(ProcessingProgress(75, "Encoding output"))
+            onProgress(ProcessingProgress(75, 100, "Encoding output"))
 
             val mimeType = when (operation) {
                 is ImageOperation.Convert -> operation.mimeType.lowercase()
@@ -104,7 +104,7 @@ public class AndroidImageProcessor(
             processed.recycle()
 
             coroutineContext.ensureActive()
-            onProgress(ProcessingProgress(100, "Complete"))
+            onProgress(ProcessingProgress(100, 100, "Complete"))
 
             ForgeResult.Success(
                 ImageArtifact(
