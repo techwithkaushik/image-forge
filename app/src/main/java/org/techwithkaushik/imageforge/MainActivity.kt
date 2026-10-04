@@ -6,15 +6,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import org.techwithkaushik.imageforge.designsystem.ImageForgeTheme
 
 class MainActivity : ComponentActivity() {
+    private var pendingImageUri by mutableStateOf<String?>(null)
+
     private val imagePicker = registerForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
@@ -25,34 +24,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private var pendingImageUri: String? = null
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            ImageForgeApp(
-                onPickImage = {
-                    imagePicker.launch(arrayOf("image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"))
-                },
-                importedImageUri = pendingImageUri,
-                onImportedImageConsumed = { pendingImageUri = null },
-            )
+            ImageForgeTheme {
+                ImageForgeNavHost(
+                    onPickImage = {
+                        imagePicker.launch(
+                            arrayOf(
+                                "image/jpeg",
+                                "image/png",
+                                "image/webp",
+                                "image/heic",
+                                "image/heif",
+                            ),
+                        )
+                    },
+                    importedImageUri = pendingImageUri,
+                    onImportedImageConsumed = { pendingImageUri = null },
+                )
+            }
         }
-    }
-}
-
-@Composable
-private fun ImageForgeApp(
-    onPickImage: () -> Unit,
-    importedImageUri: String?,
-    onImportedImageConsumed: () -> Unit,
-) {
-    ImageForgeTheme {
-        ImageForgeNavHost(
-            onPickImage = onPickImage,
-            importedImageUri = importedImageUri,
-            onImportedImageConsumed = onImportedImageConsumed,
-        )
     }
 }
