@@ -13,6 +13,7 @@ public data class ImageMetadata(
     val height: Int,
     val mimeType: String,
     val byteCount: Long,
+    val metadata: ImageMetadataDetails? = null,
 ) {
     init {
         require(width > 0)
@@ -100,4 +101,5 @@ public sealed interface ImageOperation {
 public data class ImageProcessingRequest(
     val input: ImageInput,
     val operation: ImageOperation,
+    val metadataPolicy: MetadataPolicy = MetadataPolicy.PRESERVE_SUPPORTED,
 )
