@@ -4,6 +4,9 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.BitmapRegionDecoder
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.net.Uri
 import java.io.File
 import java.io.FileOutputStream
@@ -68,6 +71,12 @@ public class AndroidImageProcessor(
                 }
             }
 
+            if (operation is ImageOperation.Convert && !isWithinDecodeBudget(bounds.outWidth, bounds.outHeight)) {
+                return@withContext ForgeResult.Failure(
+                    ForgeError.InvalidInput("Format conversion requires a full-resolution bitmap within the configured memory budget."),
+                )
+            }
+
             if (operation is ImageOperation.Inspect) {
                 return@withContext ForgeResult.Success(
                     ImageArtifact(
@@ -93,6 +102,7 @@ public class AndroidImageProcessor(
                     operation.height,
                 )
                 is ImageOperation.Crop -> decodeCrop(request.input.uri, operation)
+                is ImageOperation.Convert -> decodeFullResolution(request.input.uri)
                 else -> decodeSampled(request.input.uri, bounds)
             } ?: return@withContext ForgeResult.Failure(
                 ForgeError.InvalidInput("The image could not be decoded within the memory budget."),
@@ -105,7 +115,7 @@ public class AndroidImageProcessor(
             val processed = when (operation) {
                 is ImageOperation.Resize -> resize(decoded, operation.width, operation.height)
                 is ImageOperation.Crop -> decoded
-                is ImageOperation.Convert -> decoded
+                is ImageOperation.Convert -> prepareForConversion(decoded, operation.mimeType)
                 is ImageOperation.Compress -> decoded
                 ImageOperation.Inspect -> decoded
             }
@@ -142,7 +152,7 @@ public class AndroidImageProcessor(
             onProgress(ProcessingProgress(75, 100, "Encoding output"))
 
             val mimeType = when (operation) {
-                is ImageOperation.Convert -> operation.mimeType.lowercase()
+                is ImageOperation.Convert -> ImageFormatPolicy.normalizeOutputMimeType(operation.mimeType)
                 else -> when (request.input.mimeType ?: resolver.getType(request.input.uri)) {
                     "image/png", "image/webp", "image/jpeg" -> request.input.mimeType ?: resolver.getType(request.input.uri)!!
                     else -> "image/jpeg"
@@ -185,6 +195,12 @@ public class AndroidImageProcessor(
         }
     }
 
+    private fun isWithinDecodeBudget(width: Int, height: Int): Boolean {
+        val pixels = width.toLong() * height.toLong()
+        return pixels <= policy.maxDecodePixels &&
+            pixels <= policy.maxBitmapBytes / 4L
+    }
+
     private fun isCropWithinBounds(
         crop: ImageOperation.Crop,
         sourceWidth: Int,
@@ -220,6 +236,14 @@ public class AndroidImageProcessor(
             }.let { options -> BitmapFactory.decodeStream(input, null, options) }
         }
     }
+
+    private fun decodeFullResolution(uri: Uri): Bitmap? =
+        resolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.Options().apply {
+                inSampleSize = 1
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }.let { options -> BitmapFactory.decodeStream(input, null, options) }
+        }
 
     @Suppress("DEPRECATION")
     private fun decodeForResize(
@@ -302,6 +326,19 @@ public class AndroidImageProcessor(
     private fun resize(source: Bitmap, width: Int, height: Int): Bitmap {
         if (source.width == width && source.height == height) return source
         return Bitmap.createScaledBitmap(source, width, height, true)
+    }
+
+    private fun prepareForConversion(source: Bitmap, mimeType: String): Bitmap {
+        if (ImageFormatPolicy.normalizeOutputMimeType(mimeType) != ImageFormatPolicy.JPEG) {
+            return source
+        }
+
+        val flattened = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        Canvas(flattened).apply {
+            drawColor(Color.WHITE)
+            drawBitmap(source, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+        }
+        return flattened
     }
 
     private data class EncodedOutput(
