@@ -4,6 +4,11 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val signingStorePath = System.getenv("SIGN_KEY_STORE")
+val signingKeyAlias = System.getenv("SIGNING_KEY_ALIAS")
+val signingKeyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+val signingStorePassword = System.getenv("SIGNING_STORE_PASSWORD")
+
 android {
     namespace = "org.techwithkaushik.imageforge"
     compileSdk = 37
@@ -21,31 +26,6 @@ android {
         buildConfig = false
     }
 
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-    }
-}
-
-dependencies {
-    implementation(project(":core:common"))
-    implementation(project(":core:designsystem"))
-    implementation(project(":feature:dashboard"))
-
-    implementation(platform(libs.compose.bom))
-    implementation(libs.bundles.compose)
-    implementation(libs.androidx.activity.compose)
-    implementation(libs.androidx.lifecycle.runtime.compose)
-}
-
-
-val signingStorePath = System.getenv("SIGN_KEY_STORE")
-val signingKeyAlias = System.getenv("SIGNING_KEY_ALIAS")
-val signingKeyPassword = System.getenv("SIGNING_KEY_PASSWORD")
-val signingStorePassword = System.getenv("SIGNING_STORE_PASSWORD")
-
-android {
     signingConfigs {
         create("release") {
             require(!signingStorePath.isNullOrBlank()) {
@@ -73,4 +53,21 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
     }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+}
+
+dependencies {
+    implementation(project(":core:common"))
+    implementation(project(":core:designsystem"))
+    implementation(project(":feature:dashboard"))
+
+    implementation(platform(libs.compose.bom))
+    implementation(libs.bundles.compose)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
 }
