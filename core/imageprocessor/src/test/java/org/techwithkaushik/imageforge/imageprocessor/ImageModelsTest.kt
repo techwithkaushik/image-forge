@@ -1,21 +1,21 @@
 package org.techwithkaushik.imageforge.imageprocessor
 
 import android.net.Uri
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
+import org.junit.Test
 
 class ImageModelsTest {
     @Test
     fun resize_requires_positive_dimensions() {
-        assertFailsWith<IllegalArgumentException> {
+        assertThrows(IllegalArgumentException::class.java) {
             ImageOperation.Resize(0, 100)
         }
     }
 
     @Test
     fun crop_requires_positive_dimensions_and_non_negative_origin() {
-        assertFailsWith<IllegalArgumentException> {
+        assertThrows(IllegalArgumentException::class.java) {
             ImageOperation.Crop(-1, 0, 10, 10)
         }
     }
@@ -32,13 +32,12 @@ class ImageModelsTest {
         assertEquals(100, metadata.width)
         assertEquals(200, metadata.height)
         assertEquals("image/jpeg", metadata.mimeType)
-        assertEquals(1234, metadata.byteCount)
+        assertEquals(1234L, metadata.byteCount)
     }
 
     @Test
     fun input_accepts_content_uri() {
         val input = ImageInput(Uri.parse("content://imageforge/test"))
-
         assertEquals("content://imageforge/test", input.uri.toString())
     }
 }
