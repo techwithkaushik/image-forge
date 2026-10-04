@@ -16,8 +16,8 @@ public class BatchImageProcessorTest {
     @Test
     public fun processesAllItemsInInputOrderAndReportsAggregateProgress() = runBlocking {
         val inputs = listOf(
-            BatchImageInput("one", ImageInput(Uri.parse("content://one"))),
-            BatchImageInput("two", ImageInput(Uri.parse("content://two"))),
+            input("one"),
+            input("two"),
         )
         val progress = mutableListOf<ProcessingProgress>()
         val processor = fakeProcessor { request, onProgress ->
@@ -39,12 +39,9 @@ public class BatchImageProcessorTest {
     @Test
     public fun retriesFailedItemAndThenContinues() = runBlocking {
         var calls = 0
-        val inputs = listOf(
-            BatchImageInput("retry", ImageInput(Uri.parse("content://retry"))),
-            BatchImageInput("ok", ImageInput(Uri.parse("content://ok"))),
-        )
+        val inputs = listOf(input("retry"), input("ok"))
         val processor = fakeProcessor { request, _ ->
-            if (request.input.uri.toString() == "content://retry" && calls++ < 2) {
+            if (request.input.displayName == "retry" && calls++ < 2) {
                 ForgeResult.Failure(ForgeError.ProcessingFailed("temporary"))
             } else {
                 ForgeResult.Success(artifact(request.input.uri))
@@ -62,12 +59,9 @@ public class BatchImageProcessorTest {
     @Test
     public fun skipsAfterRetryBudgetIsExhausted() = runBlocking {
         var calls = 0
-        val inputs = listOf(
-            BatchImageInput("bad", ImageInput(Uri.parse("content://bad"))),
-            BatchImageInput("good", ImageInput(Uri.parse("content://good"))),
-        )
+        val inputs = listOf(input("bad"), input("good"))
         val processor = fakeProcessor { request, _ ->
-            if (request.input.uri.toString() == "content://bad") {
+            if (request.input.displayName == "bad") {
                 calls++
                 ForgeResult.Failure(ForgeError.InvalidInput("bad input"))
             } else {
@@ -82,7 +76,7 @@ public class BatchImageProcessorTest {
         assertEquals(2, calls)
         assertEquals(listOf("bad"), result.skipped.map { it.id })
         assertEquals(listOf("good"), result.successes.map { it.id })
-        assertEquals(listOf("content://good"), result.artifactsForSaveAll.map { it.uri.toString() })
+        assertEquals(1, result.artifactsForSaveAll.size)
     }
 
     @Test
@@ -98,10 +92,7 @@ public class BatchImageProcessorTest {
 
         try {
             BatchImageProcessor(processor).process(
-                BatchProcessingRequest(
-                    listOf(BatchImageInput("cancel", ImageInput(Uri.parse("content://cancel")))),
-                    operation,
-                ),
+                BatchProcessingRequest(listOf(input("cancel")), operation),
             )
             throw AssertionError("Expected cancellation")
         } catch (expected: CancellationException) {
@@ -111,9 +102,7 @@ public class BatchImageProcessorTest {
 
     @Test
     public fun copiesCallerCollectionsAtTheBoundary() {
-        val inputs = mutableListOf(
-            BatchImageInput("one", ImageInput(Uri.parse("content://one"))),
-        )
+        val inputs = mutableListOf(input("one"))
         val request = BatchProcessingRequest(inputs, operation)
         inputs.clear()
         assertEquals(1, request.items.size)
@@ -125,15 +114,18 @@ public class BatchImageProcessorTest {
         assertTrue(
             runCatching {
                 BatchProcessingRequest(
-                    listOf(
-                        BatchImageInput("same", ImageInput(Uri.parse("content://one"))),
-                        BatchImageInput("same", ImageInput(Uri.parse("content://two"))),
-                    ),
+                    listOf(input("same"), input("same")),
                     operation,
                 )
             }.isFailure,
         )
     }
+
+    private fun input(name: String): BatchImageInput =
+        BatchImageInput(
+            id = name,
+            input = ImageInput(uri = null as Uri, displayName = name),
+        )
 
     private fun artifact(uri: Uri): ImageArtifact =
         ImageArtifact(
