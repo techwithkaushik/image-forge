@@ -87,7 +87,36 @@ public class AndroidImageProcessor(
                 is ImageOperation.Resize -> resize(decoded, operation.width, operation.height)
                 is ImageOperation.Crop -> decoded
                 is ImageOperation.Convert -> decoded
+                is ImageOperation.Compress -> decoded
                 ImageOperation.Inspect -> decoded
+            }
+
+            if (operation is ImageOperation.Compress) {
+                coroutineContext.ensureActive()
+                onProgress(ProcessingProgress(75, 100, "Searching target size"))
+                val outputWidth = processed.width
+                val outputHeight = processed.height
+                val output = compressToTarget(processed, operation)
+                processed.recycle()
+                if (output == null) {
+                    return@withContext ForgeResult.Failure(
+                        ForgeError.ProcessingFailed("Unable to satisfy the requested target-size contract."),
+                    )
+                }
+                outputFile = output.file
+                coroutineContext.ensureActive()
+                onProgress(ProcessingProgress(100, 100, "Complete"))
+                return@withContext ForgeResult.Success(
+                    ImageArtifact(
+                        uri = output.uri,
+                        metadata = ImageMetadata(
+                            width = outputWidth,
+                            height = outputHeight,
+                            mimeType = operation.mimeType,
+                            byteCount = output.byteCount,
+                        ),
+                    ),
+                )
             }
 
             if (processed !== decoded) decoded.recycle()
@@ -97,6 +126,7 @@ public class AndroidImageProcessor(
 
             val mimeType = when (operation) {
                 is ImageOperation.Convert -> operation.mimeType.lowercase()
+                is ImageOperation.Compress -> operation.mimeType.lowercase()
                 else -> when (request.input.mimeType ?: resolver.getType(request.input.uri)) {
                     "image/png", "image/webp", "image/jpeg" -> request.input.mimeType ?: resolver.getType(request.input.uri)!!
                     else -> "image/jpeg"
@@ -210,7 +240,51 @@ public class AndroidImageProcessor(
         val byteCount: Long,
     )
 
-    private fun encode(bitmap: Bitmap, mimeType: String): EncodedOutput {
+    private suspend fun compressToTarget(bitmap: Bitmap, operation: ImageOperation.Compress): EncodedOutput? {
+        val target = operation.targetBytes
+        var low = 1
+        var high = 100
+        var best: EncodedOutput? = null
+        var bestSize = -1L
+
+        while (low <= high) {
+            coroutineContextOrThrowCancellation()
+            val quality = (low + high) ushr 1
+            val candidate = encode(bitmap, operation.mimeType, quality, losslessWebp = false)
+            if (candidate.byteCount == target) {
+                best?.file?.delete()
+                return candidate
+            }
+            if (candidate.byteCount < target) {
+                if (candidate.byteCount > bestSize) {
+                    best?.file?.delete()
+                    best = candidate
+                    bestSize = candidate.byteCount
+                } else {
+                    candidate.file.delete()
+                }
+                low = quality + 1
+            } else {
+                candidate.file.delete()
+                high = quality - 1
+            }
+        }
+
+        return when (operation.mode) {
+            ImageOperation.CompressionMode.UNDER_TARGET,
+            ImageOperation.CompressionMode.CLOSEST_TO_TARGET -> best
+            ImageOperation.CompressionMode.EXACT_BYTES -> {
+                best?.file?.delete()
+                null
+            }
+        }
+    }
+
+    private suspend fun coroutineContextOrThrowCancellation() {
+        coroutineContext.ensureActive()
+    }
+
+    private fun encode(bitmap: Bitmap, mimeType: String, quality: Int = 92, losslessWebp: Boolean = true): EncodedOutput {
         cacheDir.mkdirs()
         val extension = when (mimeType) {
             "image/png" -> "png"
@@ -221,7 +295,7 @@ public class AndroidImageProcessor(
         val file = File.createTempFile("forge-", ".$extension", cacheDir)
         val format = when (mimeType) {
             "image/png" -> Bitmap.CompressFormat.PNG
-            "image/webp" -> if (android.os.Build.VERSION.SDK_INT >= 30) {
+            "image/webp" -> if (losslessWebp && android.os.Build.VERSION.SDK_INT >= 30) {
                 Bitmap.CompressFormat.WEBP_LOSSLESS
             } else {
                 @Suppress("DEPRECATION")
@@ -232,7 +306,7 @@ public class AndroidImageProcessor(
         }
         try {
             FileOutputStream(file).use { output ->
-                check(bitmap.compress(format, 92, output)) { "Unable to encode image." }
+                check(bitmap.compress(format, quality, output)) { "Unable to encode image." }
             }
             return EncodedOutput(
                 file = file,
