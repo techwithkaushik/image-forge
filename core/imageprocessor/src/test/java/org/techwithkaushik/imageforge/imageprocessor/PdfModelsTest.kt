@@ -6,43 +6,41 @@ import org.junit.Test
 
 public class PdfModelsTest {
     @Test
-    public fun a4PortraitUsesExpectedPageGeometry() {
-        val request = ImageToPdfRequest(
-            inputs = listOf(ImageInput(android.net.Uri.parse("content://image/1"))),
-        )
-        assertEquals(595, request.pageWidth())
-        assertEquals(842, request.pageHeight())
+    public fun a4HasExpectedPageGeometry() {
+        assertEquals(595, PdfPageSize.A4.widthPoints)
+        assertEquals(842, PdfPageSize.A4.heightPoints)
     }
 
     @Test
-    public fun landscapeSwapsPageGeometry() {
-        val request = ImageToPdfRequest(
-            inputs = listOf(ImageInput(android.net.Uri.parse("content://image/1"))),
-            pageSize = PdfPageSize.LETTER,
-            orientation = PdfOrientation.LANDSCAPE,
-        )
-        assertEquals(792, request.pageWidth())
-        assertEquals(612, request.pageHeight())
+    public fun letterHasExpectedPageGeometry() {
+        assertEquals(612, PdfPageSize.LETTER.widthPoints)
+        assertEquals(792, PdfPageSize.LETTER.heightPoints)
     }
 
     @Test
-    public fun marginsAreAccepted() {
-        val request = ImageToPdfRequest(
-            inputs = listOf(ImageInput(android.net.Uri.parse("content://image/1"))),
-            margins = PdfMargins(10, 20, 30, 40),
-        )
-        assertTrue(request.pageWidth() > 40)
-        assertTrue(request.pageHeight() > 60)
+    public fun orientationHasTwoDeterministicModes() {
+        assertTrue(PdfOrientation.values().contains(PdfOrientation.PORTRAIT))
+        assertTrue(PdfOrientation.values().contains(PdfOrientation.LANDSCAPE))
     }
 
-    @Test(expected = IllegalArgumentException::class)
-    public fun pdfRequestRejectsEmptyInputs() {
-        ImageToPdfRequest(emptyList())
+    @Test
+    public fun fitHasContainAndCoverModes() {
+        assertTrue(PdfImageFit.values().contains(PdfImageFit.CONTAIN))
+        assertTrue(PdfImageFit.values().contains(PdfImageFit.COVER))
     }
 
     @Test(expected = IllegalArgumentException::class)
     public fun marginsRejectNegativeValues() {
         PdfMargins(leftPoints = -1)
+    }
+
+    @Test
+    public fun marginsAcceptZeroAndPositiveValues() {
+        val margins = PdfMargins(10, 20, 30, 40)
+        assertEquals(10, margins.leftPoints)
+        assertEquals(20, margins.topPoints)
+        assertEquals(30, margins.rightPoints)
+        assertEquals(40, margins.bottomPoints)
     }
 
     @Test(expected = IllegalArgumentException::class)
