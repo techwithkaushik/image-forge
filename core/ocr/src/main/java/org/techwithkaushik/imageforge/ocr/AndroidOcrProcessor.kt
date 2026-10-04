@@ -57,5 +57,5 @@ public class AndroidOcrProcessor(private val context: Context) : OcrProcessor {
     private fun Text.toDomain(script: OcrScript) = OcrResult(text, textBlocks.map { it.toDomain() }, script)
     private fun Text.TextBlock.toDomain() = OcrBlock(text, boundingBox, confidence, lines.map { it.toDomain() })
     private fun Text.Line.toDomain() = OcrLine(text, boundingBox, confidence, elements.map { it.toDomain() })
-    private fun Text.Element.toDomain() = OcrElement(text, boundingBox, confidence)
+    private fun Text.Element.toDomain() = OcrElement(text, boundingBox, null)
 }
