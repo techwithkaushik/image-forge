@@ -46,6 +46,28 @@ public class ImageOperationTest {
     }
 
     @Test
+    public fun convertAcceptsSupportedOutputFormats() {
+        assertEquals("image/jpeg", ImageOperation.Convert("image/jpeg").mimeType)
+        assertEquals("image/png", ImageOperation.Convert("image/png").mimeType)
+        assertEquals("image/webp", ImageOperation.Convert("image/webp").mimeType)
+    }
+
+    @Test
+    public fun convertNormalizesOutputMimeType() {
+        assertEquals("image/jpeg", ImageOperation.Convert(" IMAGE/JPEG ").mimeType)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    public fun convertRejectsUnsupportedOutputFormat() {
+        ImageOperation.Convert("image/avif")
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    public fun convertRejectsBlankOutputFormat() {
+        ImageOperation.Convert(" ")
+    }
+
+    @Test
     public fun compressionDefaultsToUnderTargetJpeg() {
         val operation = ImageOperation.Compress(50_000)
         assertEquals(ImageOperation.CompressionMode.UNDER_TARGET, operation.mode)
