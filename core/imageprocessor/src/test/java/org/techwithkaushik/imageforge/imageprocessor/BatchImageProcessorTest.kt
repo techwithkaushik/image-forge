@@ -110,6 +110,16 @@ public class BatchImageProcessorTest {
     }
 
     @Test
+    public fun copiesCallerCollectionsAtTheBoundary() {
+        val inputs = mutableListOf(
+            BatchImageInput("one", ImageInput(Uri.parse("content://one"))),
+        )
+        val request = BatchProcessingRequest(inputs, operation)
+        inputs.clear()
+        assertEquals(1, request.items.size)
+    }
+
+    @Test
     public fun rejectsInvalidBatchConfiguration() {
         assertTrue(runCatching { BatchProcessingRequest(emptyList(), operation) }.isFailure)
         assertTrue(
