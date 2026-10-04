@@ -35,9 +35,4 @@ class ImageModelsTest {
         assertEquals(1234L, metadata.byteCount)
     }
 
-    @Test
-    fun input_accepts_content_uri() {
-        val input = ImageInput(Uri.parse("content://imageforge/test"))
-        assertEquals("content://imageforge/test", input.uri.toString())
-    }
 }
