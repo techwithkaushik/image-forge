@@ -44,6 +44,17 @@ public sealed interface ImageOperation {
         }
     }
     public data class Convert(val mimeType: String) : ImageOperation
+    public enum class CompressionMode { UNDER_TARGET, CLOSEST_TO_TARGET, EXACT_BYTES }
+    public data class Compress(
+        val targetBytes: Long,
+        val mode: CompressionMode = CompressionMode.UNDER_TARGET,
+        val mimeType: String = "image/jpeg",
+    ) : ImageOperation {
+        init {
+            require(targetBytes > 0)
+            require(mimeType == "image/jpeg" || mimeType == "image/webp")
+        }
+    }
 }
 
 public data class ImageProcessingRequest(
