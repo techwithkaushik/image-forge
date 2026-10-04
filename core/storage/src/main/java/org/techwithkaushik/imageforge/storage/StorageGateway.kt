@@ -15,6 +15,8 @@ public interface StorageGateway {
 
     public suspend fun persistTreePermission(treeUri: Uri): ForgeResult<Unit>
 
+    public suspend fun releaseTreePermission(treeUri: Uri): ForgeResult<Unit>
+
     public fun hasPersistedTreePermission(treeUri: Uri): Boolean
 }
 
