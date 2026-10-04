@@ -53,8 +53,9 @@ public class ImageOperationTest {
     }
 
     @Test
-    public fun convertNormalizesOutputMimeType() {
-        assertEquals("image/jpeg", ImageOperation.Convert(" IMAGE/JPEG ").mimeType)
+    public fun convertNormalizesOutputMimeTypeForProcessing() {
+        val operation = ImageOperation.Convert(" IMAGE/JPEG ")
+        assertEquals("image/jpeg", ImageFormatPolicy.normalizeOutputMimeType(operation.mimeType))
     }
 
     @Test(expected = IllegalArgumentException::class)
