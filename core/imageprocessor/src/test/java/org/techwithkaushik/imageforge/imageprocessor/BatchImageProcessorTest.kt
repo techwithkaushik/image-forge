@@ -6,6 +6,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mockito.Mockito.mock
 import org.techwithkaushik.imageforge.common.ForgeError
 import org.techwithkaushik.imageforge.common.ForgeResult
 import org.techwithkaushik.imageforge.common.ProcessingProgress
@@ -121,7 +122,7 @@ public class BatchImageProcessorTest {
     private fun input(name: String): BatchImageInput =
         BatchImageInput(
             id = name,
-            input = ImageInput(uri = Uri.EMPTY, displayName = name),
+            input = ImageInput(uri = mock(Uri::class.java), displayName = name),
         )
 
     private fun artifact(uri: Uri): ImageArtifact =
