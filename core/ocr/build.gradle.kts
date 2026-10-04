@@ -13,4 +13,8 @@ android {
 
 dependencies {
     implementation(project(":core:common"))
+    implementation(libs.mlkit.text.recognition)
+    implementation(libs.mlkit.text.recognition.devanagari)
+    implementation(libs.kotlinx.coroutines.core)
+    testImplementation("junit:junit:4.13.2")
 }
