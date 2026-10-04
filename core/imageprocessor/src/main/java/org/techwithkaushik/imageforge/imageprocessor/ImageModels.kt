@@ -31,6 +31,14 @@ public data class ImageArtifact(
 public sealed interface ImageOperation {
     public data object Inspect : ImageOperation
 
+    public data class PassportPhoto(
+        val options: PassportOptions = PassportOptions(),
+    ) : ImageOperation
+
+    public data class ExtractSignature(
+        val options: SignatureOptions = SignatureOptions(),
+    ) : ImageOperation
+
     public data class Resize(val width: Int, val height: Int) : ImageOperation {
         init {
             require(width > 0)
