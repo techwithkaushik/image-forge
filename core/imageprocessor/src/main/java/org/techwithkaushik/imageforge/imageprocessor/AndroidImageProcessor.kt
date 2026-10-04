@@ -522,7 +522,7 @@ public class AndroidImageProcessor(
         return result
     }
 
-    private fun extractSignature(source: Bitmap, options: SignatureOptions): Bitmap {
+    private suspend fun extractSignature(source: Bitmap, options: SignatureOptions): Bitmap {
         val width = source.width
         val height = source.height
         var minX = width
@@ -533,7 +533,7 @@ public class AndroidImageProcessor(
 
         val pixels = IntArray(width)
         for (y in 0 until height) {
-            coroutineContextOrThrow()
+            coroutineContext.ensureActive()
             source.getPixels(pixels, 0, width, 0, y, width, 1)
             for (x in 0 until width) {
                 val color = pixels[x]
@@ -562,14 +562,6 @@ public class AndroidImageProcessor(
         val result = Bitmap.createBitmap(right - left, bottom - top, Bitmap.Config.ARGB_8888)
         Canvas(result).drawColor(Color.WHITE)
         val paint = Paint(Paint.FILTER_BITMAP_FLAG)
-        val matrix = android.graphics.ColorMatrix(
-            floatArrayOf(
-                0f, 0f, 0f, 0f, 0f,
-                0f, 0f, 0f, 0f, 0f,
-                0f, 0f, 0f, 0f, 0f,
-                0f, 0f, 0f, 1f, 0f,
-            ),
-        )
         Canvas(result).drawBitmap(source, -left.toFloat(), -top.toFloat(), paint)
         if (options.removeBorderNoise) {
             binarizeSignature(result, options.luminanceThreshold)
@@ -590,12 +582,6 @@ public class AndroidImageProcessor(
             bitmap.setPixels(pixels, 0, bitmap.width, 0, y, bitmap.width, 1)
         }
     }
-
-    private fun coroutineContextOrThrow() {
-        if (!coroutineContextIsActive()) throw CancellationException()
-    }
-
-    private fun coroutineContextIsActive(): Boolean = true
 
     private fun prepareForConversion(source: Bitmap, mimeType: String): Bitmap {
         if (ImageFormatPolicy.normalizeOutputMimeType(mimeType) != ImageFormatPolicy.JPEG) {
