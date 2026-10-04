@@ -34,10 +34,10 @@ internal fun ImageForgeNavHost() {
             )
         }
         composable<EditorRoute> {
-            EditorScreen()
+            EditorScreen(onBack = { navController.popBackStack() })
         }
         composable<DocumentsRoute> {
-            DocumentsScreen()
+            DocumentsScreen(onBack = { navController.popBackStack() })
         }
     }
 }
