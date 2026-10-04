@@ -1,7 +1,7 @@
 [versions]
-compileSdk = "36"
+compileSdk = "37"
 minSdk = "26"
-targetSdk = "36"
+targetSdk = "37"
 
 activityCompose = "1.13.0"
 lifecycle = "2.11.0"
