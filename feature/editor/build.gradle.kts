@@ -1,11 +1,12 @@
 plugins {
+    id("org.jetbrains.kotlin.android")
     id("com.android.library")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
     namespace = "org.techwithkaushik.imageforge.feature.editor"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 26
