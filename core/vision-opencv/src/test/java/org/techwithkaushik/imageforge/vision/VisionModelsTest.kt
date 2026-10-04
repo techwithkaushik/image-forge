@@ -1,5 +1,6 @@
 package org.techwithkaushik.imageforge.vision
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -14,7 +15,7 @@ public class VisionModelsTest {
     @Test
     public fun acceptsDeterministicDefaults() {
         val options = ContourDetectionOptions()
-        kotlin.test.assertEquals(64.0, options.minAreaPx)
-        kotlin.test.assertEquals(128, options.maxContours)
+        assertEquals(64.0, options.minAreaPx, 0.0)
+        assertEquals(128, options.maxContours)
     }
 }
