@@ -8,6 +8,12 @@ val signingStorePath = System.getenv("SIGN_KEY_STORE")
 val signingKeyAlias = System.getenv("SIGNING_KEY_ALIAS")
 val signingKeyPassword = System.getenv("SIGNING_KEY_PASSWORD")
 val signingStorePassword = System.getenv("SIGNING_STORE_PASSWORD")
+val hasReleaseSigning = listOf(
+    signingStorePath,
+    signingKeyAlias,
+    signingKeyPassword,
+    signingStorePassword,
+).all { !it.isNullOrBlank() }
 
 android {
     namespace = "org.techwithkaushik.imageforge"
@@ -26,31 +32,22 @@ android {
         buildConfig = false
     }
 
-    signingConfigs {
-        create("release") {
-            require(!signingStorePath.isNullOrBlank()) {
-                "SIGN_KEY_STORE must be set for release builds."
+    if (hasReleaseSigning) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(signingStorePath!!)
+                storePassword = signingStorePassword
+                keyAlias = signingKeyAlias
+                keyPassword = signingKeyPassword
             }
-            require(!signingKeyAlias.isNullOrBlank()) {
-                "SIGNING_KEY_ALIAS must be set for release builds."
-            }
-            require(!signingKeyPassword.isNullOrBlank()) {
-                "SIGNING_KEY_PASSWORD must be set for release builds."
-            }
-            require(!signingStorePassword.isNullOrBlank()) {
-                "SIGNING_STORE_PASSWORD must be set for release builds."
-            }
-
-            storeFile = file(signingStorePath!!)
-            storePassword = signingStorePassword
-            keyAlias = signingKeyAlias
-            keyPassword = signingKeyPassword
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
