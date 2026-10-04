@@ -14,5 +14,6 @@ android {
 dependencies {
     implementation(project(":core:common"))
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.androidx.exifinterface)
     testImplementation("junit:junit:4.13.2")
 }
