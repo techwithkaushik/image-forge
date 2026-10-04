@@ -15,10 +15,7 @@ public class BatchImageProcessorTest {
 
     @Test
     public fun processesAllItemsInInputOrderAndReportsAggregateProgress() = runBlocking {
-        val inputs = listOf(
-            input("one"),
-            input("two"),
-        )
+        val inputs = listOf(input("one"), input("two"))
         val progress = mutableListOf<ProcessingProgress>()
         val processor = fakeProcessor { request, onProgress ->
             onProgress(ProcessingProgress(50, 100, "Half"))
@@ -124,7 +121,7 @@ public class BatchImageProcessorTest {
     private fun input(name: String): BatchImageInput =
         BatchImageInput(
             id = name,
-            input = ImageInput(uri = null as Uri, displayName = name),
+            input = ImageInput(uri = Uri.EMPTY, displayName = name),
         )
 
     private fun artifact(uri: Uri): ImageArtifact =
