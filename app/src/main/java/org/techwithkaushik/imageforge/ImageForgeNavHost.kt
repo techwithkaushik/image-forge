@@ -30,6 +30,7 @@ internal fun ImageForgeNavHost() {
             DashboardScreen(
                 onOpenEditor = { navController.navigate(EditorRoute) },
                 onImportImage = { navController.navigate(EditorRoute) },
+                onOpenDocuments = { navController.navigate(DocumentsRoute) },
             )
         }
         composable<EditorRoute> {
