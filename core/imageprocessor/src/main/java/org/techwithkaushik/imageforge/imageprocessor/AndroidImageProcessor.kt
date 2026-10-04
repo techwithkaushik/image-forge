@@ -78,8 +78,8 @@ public class AndroidImageProcessor(
 
             if (operation.requiresFullResolution() &&
                 !isWithinDecodeBudget(
-                    outputWidthFor(operation, bounds.outWidth, bounds.outHeight),
-                    outputHeightFor(operation, bounds.outWidth, bounds.outHeight),
+                    outputWidthFor(operation, bounds.first, bounds.second),
+                    outputHeightFor(operation, bounds.first, bounds.second),
                 )
             ) {
                 return@withContext ForgeResult.Failure(
@@ -124,7 +124,7 @@ public class AndroidImageProcessor(
                 is ImageOperation.Rotate,
                 is ImageOperation.Flip,
                 is ImageOperation.ColorAdjust -> decodeFullResolution(request.input.uri)
-                else -> decodeSampled(request.input.uri, bounds)
+                else -> decodeSampled(request.input.uri, rawBounds)
             } ?: return@withContext ForgeResult.Failure(
                 ForgeError.InvalidInput("The image could not be decoded within the memory budget."),
             )
@@ -404,9 +404,6 @@ public class AndroidImageProcessor(
         }
         return sample
     }
-
-    private fun cropBitmap(source: Bitmap, crop: ImageOperation.Crop): Bitmap =
-        Bitmap.createBitmap(source, crop.left, crop.top, crop.width, crop.height)
 
     private fun resize(source: Bitmap, width: Int, height: Int): Bitmap {
         if (source.width == width && source.height == height) return source
