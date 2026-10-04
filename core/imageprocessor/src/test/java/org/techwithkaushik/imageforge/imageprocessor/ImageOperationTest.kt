@@ -10,8 +10,39 @@ public class ImageOperationTest {
     }
 
     @Test(expected = IllegalArgumentException::class)
+    public fun resizeRejectsZeroHeight() {
+        ImageOperation.Resize(100, 0)
+    }
+
+    @Test
+    public fun resizeAcceptsPositiveExactDimensions() {
+        val operation = ImageOperation.Resize(1920, 1080)
+        assertEquals(1920, operation.width)
+        assertEquals(1080, operation.height)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
     public fun cropRejectsZeroHeight() {
         ImageOperation.Crop(0, 0, 100, 0)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    public fun cropRejectsNegativeLeft() {
+        ImageOperation.Crop(-1, 0, 100, 100)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    public fun cropRejectsNegativeTop() {
+        ImageOperation.Crop(0, -1, 100, 100)
+    }
+
+    @Test
+    public fun cropAcceptsPositiveGeometry() {
+        val operation = ImageOperation.Crop(10, 20, 640, 480)
+        assertEquals(10, operation.left)
+        assertEquals(20, operation.top)
+        assertEquals(640, operation.width)
+        assertEquals(480, operation.height)
     }
 
     @Test
