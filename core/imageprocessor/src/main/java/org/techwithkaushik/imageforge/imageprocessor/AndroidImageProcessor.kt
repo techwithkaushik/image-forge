@@ -27,6 +27,7 @@ public class AndroidImageProcessor(
         request: ImageProcessingRequest,
         onProgress: (ProcessingProgress) -> Unit,
     ): ForgeResult<ImageArtifact> = withContext(Dispatchers.IO) {
+        var outputFile: File? = null
         try {
             coroutineContext.ensureActive()
             onProgress(ProcessingProgress(0, 100, "Inspecting image"))
@@ -102,6 +103,7 @@ public class AndroidImageProcessor(
                 }
             }
             val output = encode(processed, mimeType)
+            outputFile = output.file
             val outputWidth = processed.width
             val outputHeight = processed.height
             processed.recycle()
@@ -121,12 +123,16 @@ public class AndroidImageProcessor(
                 ),
             )
         } catch (e: CancellationException) {
+            outputFile?.delete()
             throw e
         } catch (e: OutOfMemoryError) {
+            outputFile?.delete()
             ForgeResult.Failure(ForgeError.ProcessingFailed("Image exceeds the available memory budget.", e))
         } catch (e: IllegalArgumentException) {
+            outputFile?.delete()
             ForgeResult.Failure(ForgeError.InvalidInput(e.message ?: "Invalid image processing request."))
         } catch (e: Exception) {
+            outputFile?.delete()
             ForgeResult.Failure(ForgeError.ProcessingFailed("Image processing failed.", e))
         }
     }
@@ -199,6 +205,7 @@ public class AndroidImageProcessor(
     }
 
     private data class EncodedOutput(
+        val file: File,
         val uri: Uri,
         val byteCount: Long,
     )
@@ -223,13 +230,19 @@ public class AndroidImageProcessor(
             "image/jpeg" -> Bitmap.CompressFormat.JPEG
             else -> throw IllegalArgumentException("Unsupported output MIME type: $mimeType")
         }
-        FileOutputStream(file).use { output ->
-            check(bitmap.compress(format, 92, output)) { "Unable to encode image." }
+        try {
+            FileOutputStream(file).use { output ->
+                check(bitmap.compress(format, 92, output)) { "Unable to encode image." }
+            }
+            return EncodedOutput(
+                file = file,
+                uri = Uri.fromFile(file),
+                byteCount = file.length(),
+            )
+        } catch (e: Throwable) {
+            file.delete()
+            throw e
         }
-        return EncodedOutput(
-            uri = Uri.fromFile(file),
-            byteCount = file.length(),
-        )
     }
 
     private fun querySize(uri: Uri): Long =
