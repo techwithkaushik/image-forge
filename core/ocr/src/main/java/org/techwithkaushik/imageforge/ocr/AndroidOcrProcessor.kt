@@ -31,7 +31,7 @@ public class AndroidOcrProcessor(private val context: Context) : OcrProcessor {
             recognizer.close()
         }
     } catch (t: Throwable) {
-        if (t is kotlinx.coroutines.CancellationException) ForgeResult.Failure(ForgeError.Cancelled)
+        if (t is kotlinx.coroutines.CancellationException) throw t
         else ForgeResult.Failure(ForgeError.ProcessingFailed(t.message ?: "Offline OCR failed.", t))
     }
 
