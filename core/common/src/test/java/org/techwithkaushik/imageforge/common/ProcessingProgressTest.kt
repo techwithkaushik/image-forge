@@ -1,8 +1,8 @@
 package org.techwithkaushik.imageforge.common
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
+import org.junit.Test
 
 class ProcessingProgressTest {
     @Test
@@ -12,7 +12,7 @@ class ProcessingProgressTest {
 
     @Test
     fun invalid_progress_is_rejected() {
-        assertFailsWith<IllegalArgumentException> {
+        assertThrows(IllegalArgumentException::class.java) {
             ProcessingProgress(5, 4)
         }
     }
