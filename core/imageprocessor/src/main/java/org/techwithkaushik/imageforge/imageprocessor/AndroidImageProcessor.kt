@@ -39,21 +39,17 @@ public class AndroidImageProcessor(
                 )
 
             val operation = request.operation
-            if (operation is ImageOperation.Crop) {
-                if (operation.left + operation.width > bounds.outWidth ||
-                    operation.top + operation.height > bounds.outHeight
-                ) {
-                    return@withContext ForgeResult.Failure(
-                        ForgeError.InvalidInput("Crop bounds exceed the source image."),
-                    )
-                }
+            if (operation is ImageOperation.Crop && !isCropWithinBounds(operation, bounds.outWidth, bounds.outHeight)) {
+                return@withContext ForgeResult.Failure(
+                    ForgeError.InvalidInput("Crop bounds exceed the source image."),
+                )
             }
 
             if (operation is ImageOperation.Resize) {
                 val requestedPixels = operation.width.toLong() * operation.height.toLong()
                 if (requestedPixels > policy.maxOutputPixels ||
                     requestedPixels > policy.maxDecodePixels ||
-                    requestedPixels * 4L > policy.maxBitmapBytes
+                    requestedPixels > policy.maxBitmapBytes / 4L
                 ) {
                     return@withContext ForgeResult.Failure(
                         ForgeError.InvalidInput("Requested resize exceeds the configured bitmap memory budget."),
@@ -64,7 +60,7 @@ public class AndroidImageProcessor(
             if (operation is ImageOperation.Crop) {
                 val cropPixels = operation.width.toLong() * operation.height.toLong()
                 if (cropPixels > policy.maxDecodePixels ||
-                    cropPixels * 4L > policy.maxBitmapBytes
+                    cropPixels > policy.maxBitmapBytes / 4L
                 ) {
                     return@withContext ForgeResult.Failure(
                         ForgeError.InvalidInput("Requested crop exceeds the configured bitmap memory budget."),
@@ -96,7 +92,7 @@ public class AndroidImageProcessor(
                     operation.width,
                     operation.height,
                 )
-                is ImageOperation.Crop -> decodeCrop(request.input.uri, operation, bounds)
+                is ImageOperation.Crop -> decodeCrop(request.input.uri, operation)
                 else -> decodeSampled(request.input.uri, bounds)
             } ?: return@withContext ForgeResult.Failure(
                 ForgeError.InvalidInput("The image could not be decoded within the memory budget."),
@@ -189,6 +185,21 @@ public class AndroidImageProcessor(
         }
     }
 
+    private fun isCropWithinBounds(
+        crop: ImageOperation.Crop,
+        sourceWidth: Int,
+        sourceHeight: Int,
+    ): Boolean {
+        val right = crop.left.toLong() + crop.width.toLong()
+        val bottom = crop.top.toLong() + crop.height.toLong()
+        return crop.left >= 0 &&
+            crop.top >= 0 &&
+            crop.width > 0 &&
+            crop.height > 0 &&
+            right <= sourceWidth.toLong() &&
+            bottom <= sourceHeight.toLong()
+    }
+
     private fun readBounds(uri: Uri): BitmapFactory.Options? =
         resolver.openInputStream(uri)?.use { input ->
             BitmapFactory.Options().also { options ->
@@ -235,7 +246,6 @@ public class AndroidImageProcessor(
     private fun decodeCrop(
         uri: Uri,
         crop: ImageOperation.Crop,
-        bounds: BitmapFactory.Options,
     ): Bitmap? {
         val regionDecoder = resolver.openInputStream(uri)?.use { input ->
             BitmapRegionDecoder.newInstance(input, false)
@@ -265,7 +275,7 @@ public class AndroidImageProcessor(
         var sample = 1
         while (
             width.toLong() / sample * (height.toLong() / sample) > policy.maxDecodePixels ||
-            width.toLong() / sample * (height.toLong() / sample) * 4L > policy.maxBitmapBytes
+            width.toLong() / sample * (height.toLong() / sample) > policy.maxBitmapBytes / 4L
         ) {
             sample *= 2
         }
