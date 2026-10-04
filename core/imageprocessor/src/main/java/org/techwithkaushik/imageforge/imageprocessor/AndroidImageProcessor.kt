@@ -67,8 +67,11 @@ public class AndroidImageProcessor(
 
             if (operation is ImageOperation.Crop) {
                 val cropPixels = operation.width.toLong() * operation.height.toLong()
+                val needsFullDecode = sourceOrientation != androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL &&
+                    sourceOrientation != androidx.exifinterface.media.ExifInterface.ORIENTATION_UNDEFINED
                 if (cropPixels > policy.maxDecodePixels ||
-                    cropPixels > policy.maxBitmapBytes / 4L
+                    cropPixels > policy.maxBitmapBytes / 4L ||
+                    (needsFullDecode && !isWithinDecodeBudget(bounds.first, bounds.second))
                 ) {
                     return@withContext ForgeResult.Failure(
                         ForgeError.InvalidInput("Requested crop exceeds the configured bitmap memory budget."),
