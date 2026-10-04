@@ -71,9 +71,14 @@ public class AndroidImageProcessor(
                 }
             }
 
-            if (operation is ImageOperation.Convert && !isWithinDecodeBudget(bounds.outWidth, bounds.outHeight)) {
+            if (operation.requiresFullResolution() &&
+                !isWithinDecodeBudget(
+                    outputWidthFor(operation, bounds.outWidth, bounds.outHeight),
+                    outputHeightFor(operation, bounds.outWidth, bounds.outHeight),
+                )
+            ) {
                 return@withContext ForgeResult.Failure(
-                    ForgeError.InvalidInput("Format conversion requires a full-resolution bitmap within the configured memory budget."),
+                    ForgeError.InvalidInput("This editing operation requires a full-resolution bitmap within the configured memory budget."),
                 )
             }
 
@@ -102,7 +107,10 @@ public class AndroidImageProcessor(
                     operation.height,
                 )
                 is ImageOperation.Crop -> decodeCrop(request.input.uri, operation)
-                is ImageOperation.Convert -> decodeFullResolution(request.input.uri)
+                is ImageOperation.Convert,
+                is ImageOperation.Rotate,
+                is ImageOperation.Flip,
+                is ImageOperation.ColorAdjust -> decodeFullResolution(request.input.uri)
                 else -> decodeSampled(request.input.uri, bounds)
             } ?: return@withContext ForgeResult.Failure(
                 ForgeError.InvalidInput("The image could not be decoded within the memory budget."),
@@ -116,6 +124,14 @@ public class AndroidImageProcessor(
                 is ImageOperation.Resize -> resize(decoded, operation.width, operation.height)
                 is ImageOperation.Crop -> decoded
                 is ImageOperation.Convert -> prepareForConversion(decoded, operation.mimeType)
+                is ImageOperation.Rotate -> rotate(decoded, operation.degrees)
+                is ImageOperation.Flip -> flip(decoded, operation.horizontal, operation.vertical)
+                is ImageOperation.ColorAdjust -> adjustColors(
+                    decoded,
+                    operation.brightness,
+                    operation.contrast,
+                    operation.saturation,
+                )
                 is ImageOperation.Compress -> decoded
                 ImageOperation.Inspect -> decoded
             }
@@ -194,6 +210,26 @@ public class AndroidImageProcessor(
             }
         }
     }
+
+    private fun ImageOperation.requiresFullResolution(): Boolean =
+        this is ImageOperation.Convert ||
+            this is ImageOperation.Rotate ||
+            this is ImageOperation.Flip ||
+            this is ImageOperation.ColorAdjust
+
+    private fun outputWidthFor(operation: ImageOperation, sourceWidth: Int, sourceHeight: Int): Int =
+        if (operation is ImageOperation.Rotate && (operation.degrees == 90 || operation.degrees == 270)) {
+            sourceHeight
+        } else {
+            sourceWidth
+        }
+
+    private fun outputHeightFor(operation: ImageOperation, sourceWidth: Int, sourceHeight: Int): Int =
+        if (operation is ImageOperation.Rotate && (operation.degrees == 90 || operation.degrees == 270)) {
+            sourceWidth
+        } else {
+            sourceHeight
+        }
 
     private fun isWithinDecodeBudget(width: Int, height: Int): Boolean {
         val pixels = width.toLong() * height.toLong()
@@ -326,6 +362,54 @@ public class AndroidImageProcessor(
     private fun resize(source: Bitmap, width: Int, height: Int): Bitmap {
         if (source.width == width && source.height == height) return source
         return Bitmap.createScaledBitmap(source, width, height, true)
+    }
+
+    private fun rotate(source: Bitmap, degrees: Int): Bitmap {
+        val matrix = android.graphics.Matrix().apply { postRotate(degrees.toFloat()) }
+        return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
+    }
+
+    private fun flip(source: Bitmap, horizontal: Boolean, vertical: Boolean): Bitmap {
+        val matrix = android.graphics.Matrix().apply {
+            postScale(
+                if (horizontal) -1f else 1f,
+                if (vertical) -1f else 1f,
+                source.width / 2f,
+                source.height / 2f,
+            )
+        }
+        return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
+    }
+
+    private fun adjustColors(
+        source: Bitmap,
+        brightness: Float,
+        contrast: Float,
+        saturation: Float,
+    ): Bitmap {
+        val result = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        val matrix = android.graphics.ColorMatrix()
+        matrix.setSaturation(saturation)
+        val scale = contrast
+        val translate = (-0.5f * scale + 0.5f + brightness) * 255f
+        val contrastMatrix = android.graphics.ColorMatrix(
+            floatArrayOf(
+                scale, 0f, 0f, 0f, translate,
+                0f, scale, 0f, 0f, translate,
+                0f, 0f, scale, 0f, translate,
+                0f, 0f, 0f, 1f, 0f,
+            ),
+        )
+        matrix.postConcat(contrastMatrix)
+        Canvas(result).drawBitmap(
+            source,
+            0f,
+            0f,
+            Paint(Paint.FILTER_BITMAP_FLAG).apply {
+                colorFilter = android.graphics.ColorMatrixColorFilter(matrix)
+            },
+        )
+        return result
     }
 
     private fun prepareForConversion(source: Bitmap, mimeType: String): Bitmap {
