@@ -11,3 +11,8 @@ android {
         minSdk = 26
     }
 }
+
+
+dependencies {
+    testImplementation("org.jetbrains.kotlin:kotlin-test")
+}
