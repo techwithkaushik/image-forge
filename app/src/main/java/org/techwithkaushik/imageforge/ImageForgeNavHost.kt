@@ -1,9 +1,11 @@
 package org.techwithkaushik.imageforge
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import kotlinx.serialization.Serializable
 import org.techwithkaushik.imageforge.feature.dashboard.DashboardScreen
 import org.techwithkaushik.imageforge.feature.documents.DocumentsScreen
@@ -26,7 +28,7 @@ internal fun ImageForgeNavHost(
 ) {
     val navController = rememberNavController()
 
-    androidx.compose.runtime.LaunchedEffect(importedImageUri) {
+    LaunchedEffect(importedImageUri) {
         if (importedImageUri != null) {
             navController.navigate(EditorRoute(importedImageUri)) {
                 launchSingleTop = true
@@ -50,6 +52,7 @@ internal fun ImageForgeNavHost(
             val route = entry.toRoute<EditorRoute>()
             EditorScreen(
                 imageUri = route.imageUri,
+                onImport = onPickImage,
                 onBack = { navController.popBackStack() },
             )
         }
