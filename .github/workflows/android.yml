@@ -4,10 +4,34 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - "**"
+      - main
+    paths:
+      - "app/**"
+      - "core/**"
+      - "feature/**"
+      - "gradle/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+      - "gradle/libs.versions.toml"
+      - "gradle/wrapper/**"
+      - "opencv/**"
+      - ".github/workflows/android.yml"
   pull_request:
     branches:
-      - "**"
+      - main
+    paths:
+      - "app/**"
+      - "core/**"
+      - "feature/**"
+      - "gradle/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+      - "gradle/libs.versions.toml"
+      - "gradle/wrapper/**"
+      - "opencv/**"
+      - ".github/workflows/android.yml"
 
 permissions:
   contents: read
@@ -18,7 +42,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build signed APK
+    name: Build release APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -42,7 +66,9 @@ jobs:
           OPENCV_VERSION="5.0.0"
           ZIP="$RUNNER_TEMP/opencv-android-sdk.zip"
           ROOT="$RUNNER_TEMP/opencv-sdk"
-          curl --fail --location --retry 5 --retry-all-errors             "https://github.com/opencv/opencv/releases/download/${OPENCV_VERSION}/opencv-${OPENCV_VERSION}-android-sdk.zip"             -o "$ZIP"
+          curl --fail --location --retry 5 --retry-all-errors \
+            "https://github.com/opencv/opencv/releases/download/${OPENCV_VERSION}/opencv-${OPENCV_VERSION}-android-sdk.zip" \
+            -o "$ZIP"
           rm -rf "$ROOT" opencv
           mkdir -p "$ROOT" opencv
           unzip -q "$ZIP" -d "$ROOT"
@@ -67,12 +93,13 @@ jobs:
 
       - name: Decode Keystore
         id: keystore
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: timheuer/base64-to-file@v2.0
         with:
           fileName: dev_keystore.jks
           encodedString: ${{ secrets.SIGNING_KEYSTORE }}
 
-      - name: Build signed APK
+      - name: Build release APK
         env:
           SIGN_KEY_STORE: ${{ steps.keystore.outputs.filePath }}
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
@@ -88,6 +115,7 @@ jobs:
           fi
 
       - name: Verify APK
+        if: github.event_name != 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
@@ -98,7 +126,8 @@ jobs:
           "$APKSIGNER" verify --verbose "$APK"
 
       - name: Upload APK
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: image-forge-arm32-java-opencv
+          name: image-forge-release
           path: app/build/outputs/apk/release/app-release.apk
