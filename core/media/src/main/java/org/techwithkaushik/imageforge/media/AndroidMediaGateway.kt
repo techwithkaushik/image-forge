@@ -44,7 +44,13 @@ public class AndroidMediaGateway(
                 }
             }
 
-            resolver.openInputStream(source)?.use { } ?: return@withContext ForgeResult.Failure(
+            resolver.openInputStream(source)?.use { input ->
+                if (input.read() < 0) {
+                    return@withContext ForgeResult.Failure(
+                        ForgeError.InvalidInput("The selected image is empty."),
+                    )
+                }
+            } ?: return@withContext ForgeResult.Failure(
                 ForgeError.StorageFailed("Unable to open the selected image."),
             )
 
