@@ -104,7 +104,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -x ./gradlew ]; then
-            ./gradlew :core:common:test :core:imageprocessor:test --no-daemon --build-cache --stacktrace
+            ./gradlew :core:common:test :core:imageprocessor:test :core:media:test :core:storage:test --no-daemon --build-cache --stacktrace
           else
             gradle :core:common:test :core:imageprocessor:test --no-daemon --build-cache --stacktrace
           fi
