@@ -28,6 +28,7 @@ public class AndroidImageProcessor(
         onProgress: (ProcessingProgress) -> Unit,
     ): ForgeResult<ImageArtifact> = withContext(Dispatchers.IO) {
         var outputFile: File? = null
+        val ownedBitmaps = ArrayList<Bitmap>(2)
         try {
             coroutineContext.ensureActive()
             onProgress(ProcessingProgress(0, 100, "Inspecting image"))
@@ -100,6 +101,7 @@ public class AndroidImageProcessor(
             } ?: return@withContext ForgeResult.Failure(
                 ForgeError.InvalidInput("The image could not be decoded within the memory budget."),
             )
+            ownedBitmaps += decoded
 
             coroutineContext.ensureActive()
             onProgress(ProcessingProgress(55, 100, "Applying operation"))
@@ -111,7 +113,7 @@ public class AndroidImageProcessor(
                 ImageOperation.Inspect -> decoded
             }
 
-            if (processed !== decoded) decoded.recycle()
+            if (processed !== decoded) ownedBitmaps += processed
 
             coroutineContext.ensureActive()
             onProgress(ProcessingProgress(75, 100, "Encoding output"))
@@ -127,8 +129,6 @@ public class AndroidImageProcessor(
             outputFile = output.file
             val outputWidth = processed.width
             val outputHeight = processed.height
-            processed.recycle()
-
             coroutineContext.ensureActive()
             onProgress(ProcessingProgress(100, 100, "Complete"))
 
@@ -155,6 +155,10 @@ public class AndroidImageProcessor(
         } catch (e: Exception) {
             outputFile?.delete()
             ForgeResult.Failure(ForgeError.ProcessingFailed("Image processing failed.", e))
+        } finally {
+            ownedBitmaps.distinct().forEach { bitmap ->
+                if (!bitmap.isRecycled) bitmap.recycle()
+            }
         }
     }
 
