@@ -12,6 +12,10 @@ public interface StorageGateway {
     ): ForgeResult<Uri>
 
     public suspend fun delete(uri: Uri): ForgeResult<Unit>
+
+    public suspend fun persistTreePermission(treeUri: Uri): ForgeResult<Unit>
+
+    public fun hasPersistedTreePermission(treeUri: Uri): Boolean
 }
 
 public sealed interface StorageDestination {

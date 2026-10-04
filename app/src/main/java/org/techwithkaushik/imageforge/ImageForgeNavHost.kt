@@ -1,9 +1,11 @@
 package org.techwithkaushik.imageforge
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import kotlinx.serialization.Serializable
 import org.techwithkaushik.imageforge.feature.dashboard.DashboardScreen
 import org.techwithkaushik.imageforge.feature.documents.DocumentsScreen
@@ -13,14 +15,27 @@ import org.techwithkaushik.imageforge.feature.editor.EditorScreen
 private data object DashboardRoute
 
 @Serializable
-private data object EditorRoute
+private data class EditorRoute(val imageUri: String? = null)
 
 @Serializable
 private data object DocumentsRoute
 
 @Composable
-internal fun ImageForgeNavHost() {
+internal fun ImageForgeNavHost(
+    onPickImage: () -> Unit,
+    importedImageUri: String?,
+    onImportedImageConsumed: () -> Unit,
+) {
     val navController = rememberNavController()
+
+    LaunchedEffect(importedImageUri) {
+        if (importedImageUri != null) {
+            navController.navigate(EditorRoute(importedImageUri)) {
+                launchSingleTop = true
+            }
+            onImportedImageConsumed()
+        }
+    }
 
     NavHost(
         navController = navController,
@@ -28,13 +43,18 @@ internal fun ImageForgeNavHost() {
     ) {
         composable<DashboardRoute> {
             DashboardScreen(
-                onOpenEditor = { navController.navigate(EditorRoute) },
-                onImportImage = { navController.navigate(EditorRoute) },
+                onOpenEditor = { navController.navigate(EditorRoute()) },
+                onImportImage = onPickImage,
                 onOpenDocuments = { navController.navigate(DocumentsRoute) },
             )
         }
-        composable<EditorRoute> {
-            EditorScreen(onBack = { navController.popBackStack() })
+        composable<EditorRoute> { entry ->
+            val route = entry.toRoute<EditorRoute>()
+            EditorScreen(
+                imageUri = route.imageUri,
+                onImport = onPickImage,
+                onBack = { navController.popBackStack() },
+            )
         }
         composable<DocumentsRoute> {
             DocumentsScreen(onBack = { navController.popBackStack() })
