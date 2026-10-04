@@ -62,6 +62,8 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:designsystem"))
     implementation(project(":feature:dashboard"))
+    implementation(project(":feature:editor"))
+    implementation(project(":feature:documents"))
 
     implementation(platform(libs.compose.bom))
     implementation(libs.bundles.compose)
