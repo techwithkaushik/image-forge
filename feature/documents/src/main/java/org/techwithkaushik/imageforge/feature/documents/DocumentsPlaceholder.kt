@@ -9,9 +9,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.material3.IconButton
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Icon
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.techwithkaushik.imageforge.designsystem.ForgeActionCard
@@ -28,8 +25,8 @@ public fun DocumentsScreen(
                 TopAppBar(
                     title = { Text("Documents") },
                     navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(androidx.compose.material.icons.automirrored.filled.ArrowBack, contentDescription = "Back")
+                        androidx.compose.material3.TextButton(onClick = onBack) {
+                            Text("Back")
                         }
                     },
                 )
@@ -38,6 +35,7 @@ public fun DocumentsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(padding)
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
