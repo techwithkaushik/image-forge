@@ -38,8 +38,8 @@ public class AndroidImageProcessor(
 
             val operation = request.operation
             if (operation is ImageOperation.Crop) {
-                if (operation.left + operation.width > bounds.width ||
-                    operation.top + operation.height > bounds.height
+                if (operation.left + operation.width > bounds.outWidth ||
+                    operation.top + operation.height > bounds.outHeight
                 ) {
                     return@withContext ForgeResult.Failure(
                         ForgeError.InvalidInput("Crop bounds exceed the source image."),
@@ -60,8 +60,8 @@ public class AndroidImageProcessor(
                     ImageArtifact(
                         uri = request.input.uri,
                         metadata = ImageMetadata(
-                            width = bounds.width,
-                            height = bounds.height,
+                            width = bounds.outWidth,
+                            height = bounds.outHeight,
                             mimeType = request.input.mimeType ?: resolver.getType(request.input.uri).orEmpty(),
                             byteCount = querySize(request.input.uri),
                         ),
