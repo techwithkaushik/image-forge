@@ -1,7 +1,9 @@
 package org.techwithkaushik.imageforge.imageprocessor
 
 import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ensureActive
+import org.techwithkaushik.imageforge.common.ForgeError
 import org.techwithkaushik.imageforge.common.ForgeResult
 import org.techwithkaushik.imageforge.common.ProcessingProgress
 
@@ -48,6 +50,9 @@ public class BatchImageProcessor(
                     }
 
                     is ForgeResult.Failure -> {
+                        if (result.error is ForgeError.Cancelled) {
+                            throw CancellationException("Batch processing cancelled.")
+                        }
                         if (attempts > request.maxRetries) {
                             outcome = BatchItemOutcome.Skipped(
                                 id = item.id,
