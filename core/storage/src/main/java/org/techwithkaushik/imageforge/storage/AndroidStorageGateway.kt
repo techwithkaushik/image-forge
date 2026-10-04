@@ -33,7 +33,7 @@ public class AndroidStorageGateway(
                 return@withContext ForgeResult.Failure(ForgeError.InvalidInput("A MIME type is required."))
             }
 
-            val safeName = sanitizeDisplayName(displayName)
+            val safeName = StorageNamePolicy.sanitize(displayName)
             val target = when (destination) {
                 StorageDestination.Pictures -> createMediaStoreTarget(
                     collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
@@ -175,7 +175,4 @@ public class AndroidStorageGateway(
             )
         return ForgeResult.Success(uri)
     }
-
-    private fun sanitizeDisplayName(displayName: String): String =
-        displayName.replace('/', '_').replace('\\', '_').trim().ifBlank { "image" }
 }
