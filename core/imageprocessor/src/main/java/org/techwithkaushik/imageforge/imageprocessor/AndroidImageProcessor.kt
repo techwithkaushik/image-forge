@@ -250,7 +250,7 @@ public class AndroidImageProcessor(
         while (low <= high) {
             coroutineContextOrThrowCancellation()
             val quality = (low + high) ushr 1
-            val candidate = encode(bitmap, operation.mimeType, quality)
+            val candidate = encode(bitmap, operation.mimeType, quality, losslessWebp = false)
             if (candidate.byteCount == target) {
                 best?.file?.delete()
                 return candidate
@@ -284,7 +284,7 @@ public class AndroidImageProcessor(
         coroutineContext.ensureActive()
     }
 
-    private fun encode(bitmap: Bitmap, mimeType: String, quality: Int = 92): EncodedOutput {
+    private fun encode(bitmap: Bitmap, mimeType: String, quality: Int = 92, losslessWebp: Boolean = true): EncodedOutput {
         cacheDir.mkdirs()
         val extension = when (mimeType) {
             "image/png" -> "png"
@@ -295,7 +295,7 @@ public class AndroidImageProcessor(
         val file = File.createTempFile("forge-", ".$extension", cacheDir)
         val format = when (mimeType) {
             "image/png" -> Bitmap.CompressFormat.PNG
-            "image/webp" -> if (android.os.Build.VERSION.SDK_INT >= 30) {
+            "image/webp" -> if (losslessWebp && android.os.Build.VERSION.SDK_INT >= 30) {
                 Bitmap.CompressFormat.WEBP_LOSSLESS
             } else {
                 @Suppress("DEPRECATION")
