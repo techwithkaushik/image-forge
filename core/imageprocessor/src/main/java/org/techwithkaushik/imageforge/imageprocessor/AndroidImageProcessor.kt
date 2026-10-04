@@ -95,8 +95,8 @@ public class AndroidImageProcessor(
                     ImageArtifact(
                         uri = request.input.uri,
                         metadata = ImageMetadata(
-                            width = bounds.outWidth,
-                            height = bounds.outHeight,
+                            width = bounds.first,
+                            height = bounds.second,
                             mimeType = request.input.mimeType ?: resolver.getType(request.input.uri).orEmpty(),
                             byteCount = querySize(request.input.uri),
                             metadata = sourceMetadata,
@@ -284,9 +284,7 @@ public class AndroidImageProcessor(
         return if (swaps) bounds.outHeight to bounds.outWidth else bounds.outWidth to bounds.outHeight
     }
 
-    private fun cropBitmap(source: Bitmap, crop: ImageOperation.Crop): Bitmap =
-        Bitmap.createBitmap(source, crop.left, crop.top, crop.width, crop.height)
-
+    private fun isCropWithinBounds(
         crop: ImageOperation.Crop,
         sourceWidth: Int,
         sourceHeight: Int,
