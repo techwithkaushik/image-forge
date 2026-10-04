@@ -42,7 +42,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build release APK
+    name: Verify and build release APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -98,6 +98,16 @@ jobs:
         with:
           fileName: dev_keystore.jks
           encodedString: ${{ secrets.SIGNING_KEYSTORE }}
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -x ./gradlew ]; then
+            ./gradlew :core:common:test :core:imageprocessor:test --no-daemon --build-cache --stacktrace
+          else
+            gradle :core:common:test :core:imageprocessor:test --no-daemon --build-cache --stacktrace
+          fi
 
       - name: Build release APK
         env:
