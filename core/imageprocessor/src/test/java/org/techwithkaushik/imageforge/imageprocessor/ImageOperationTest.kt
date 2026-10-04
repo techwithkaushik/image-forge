@@ -12,4 +12,16 @@ public class ImageOperationTest {
     public fun cropRejectsZeroHeight() {
         ImageOperation.Crop(0, 0, 100, 0)
     }
+
+    @Test
+    public fun compressionDefaultsToUnderTargetJpeg() {
+        val operation = ImageOperation.Compress(50_000)
+        assert(operation.mode == ImageOperation.CompressionMode.UNDER_TARGET)
+        assert(operation.mimeType == "image/jpeg")
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    public fun compressionRejectsUnsupportedMimeType() {
+        ImageOperation.Compress(50_000, mimeType = "image/png")
+    }
 }
