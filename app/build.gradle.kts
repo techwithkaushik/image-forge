@@ -38,3 +38,39 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
 }
+
+
+val signingStorePath = System.getenv("SIGN_KEY_STORE")
+val signingKeyAlias = System.getenv("SIGNING_KEY_ALIAS")
+val signingKeyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+val signingStorePassword = System.getenv("SIGNING_STORE_PASSWORD")
+
+android {
+    signingConfigs {
+        create("release") {
+            require(!signingStorePath.isNullOrBlank()) {
+                "SIGN_KEY_STORE must be set for release builds."
+            }
+            require(!signingKeyAlias.isNullOrBlank()) {
+                "SIGNING_KEY_ALIAS must be set for release builds."
+            }
+            require(!signingKeyPassword.isNullOrBlank()) {
+                "SIGNING_KEY_PASSWORD must be set for release builds."
+            }
+            require(!signingStorePassword.isNullOrBlank()) {
+                "SIGNING_STORE_PASSWORD must be set for release builds."
+            }
+
+            storeFile = file(signingStorePath!!)
+            storePassword = signingStorePassword
+            keyAlias = signingKeyAlias
+            keyPassword = signingKeyPassword
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
+}
