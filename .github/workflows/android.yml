@@ -78,16 +78,23 @@ jobs:
             gradle :app:testDebugUnitTest --no-daemon --build-cache --stacktrace
           fi
 
-      - name: Decode Keystore
-        id: keystore
-        uses: timheuer/base64-to-file@v2.0
-        with:
-          fileName: dev_keystore.jks
-          encodedString: ${{ secrets.SIGNING_KEYSTORE }}
+      - name: Prepare release signing
+        id: signing
+        shell: bash
+        env:
+          SIGNING_KEYSTORE: ${{ secrets.SIGNING_KEYSTORE }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SIGNING_KEYSTORE:-}" ]; then
+            echo "::error::SIGNING_KEYSTORE repository secret is not configured."
+            exit 1
+          fi
+          printf '%s' "$SIGNING_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/dev_keystore.jks"
+          test -s "$RUNNER_TEMP/dev_keystore.jks"
 
       - name: Build signed APK
         env:
-          SIGN_KEY_STORE: ${{ steps.keystore.outputs.filePath }}
+          SIGN_KEY_STORE: ${{ runner.temp }}/dev_keystore.jks
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
