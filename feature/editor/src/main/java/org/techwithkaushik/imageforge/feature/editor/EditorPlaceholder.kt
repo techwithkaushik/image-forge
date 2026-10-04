@@ -18,6 +18,7 @@ import org.techwithkaushik.imageforge.designsystem.ForgeScreenSurface
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 public fun EditorScreen(
+    imageUri: String? = null,
     onBack: () -> Unit = {},
     onImport: () -> Unit = {},
 ) {
@@ -34,26 +35,43 @@ public fun EditorScreen(
                 )
             },
         ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text("Editor", style = MaterialTheme.typography.headlineSmall)
-            Text(
-                "Production image tools will run through the core processing contract.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            ForgeActionCard(
-                title = "Start with an image",
-                description = "Import an image before selecting resize, crop, compression or conversion tools.",
-                actionLabel = "Import",
-                onAction = onImport,
-            )
-        }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text("Editor", style = MaterialTheme.typography.headlineSmall)
+                if (imageUri == null) {
+                    Text(
+                        "Select an image to begin editing.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    ForgeActionCard(
+                        title = "Start with an image",
+                        description = "Choose an image from device storage. ImageForge keeps processing on-device.",
+                        actionLabel = "Import",
+                        onAction = onImport,
+                    )
+                } else {
+                    Text(
+                        "Image imported",
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    Text(
+                        imageUri,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        "Image processing tools will use the core processing contract.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }
