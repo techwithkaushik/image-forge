@@ -25,6 +25,7 @@ public class AndroidImageProcessor(
 ) : ImageProcessor {
     private val resolver = context.applicationContext.contentResolver
     private val cacheDir = File(context.applicationContext.cacheDir, "imageforge-processing")
+    private val exif = ExifMetadataHandler { uri -> resolver.openInputStream(uri) }
 
     override suspend fun process(
         request: ImageProcessingRequest,
@@ -36,13 +37,17 @@ public class AndroidImageProcessor(
             coroutineContext.ensureActive()
             onProgress(ProcessingProgress(0, 100, "Inspecting image"))
 
-            val bounds = readBounds(request.input.uri)
+            val sourceMetadata = exif.inspect(request.input.uri)
+            val sourceOrientation = sourceMetadata?.orientation ?: androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
+            val rawBounds = readBounds(request.input.uri)
                 ?: return@withContext ForgeResult.Failure(
+
                     ForgeError.InvalidInput("The selected file is not a readable image."),
                 )
 
             val operation = request.operation
-            if (operation is ImageOperation.Crop && !isCropWithinBounds(operation, bounds.outWidth, bounds.outHeight)) {
+            val bounds = orientedBounds(rawBounds, sourceOrientation)
+            if (operation is ImageOperation.Crop && !isCropWithinBounds(operation, bounds.first, bounds.second)) {
                 return@withContext ForgeResult.Failure(
                     ForgeError.InvalidInput("Crop bounds exceed the source image."),
                 )
@@ -91,6 +96,7 @@ public class AndroidImageProcessor(
                             height = bounds.outHeight,
                             mimeType = request.input.mimeType ?: resolver.getType(request.input.uri).orEmpty(),
                             byteCount = querySize(request.input.uri),
+                            metadata = sourceMetadata,
                         ),
                     ),
                 )
@@ -102,11 +108,18 @@ public class AndroidImageProcessor(
             val decoded = when (operation) {
                 is ImageOperation.Resize -> decodeForResize(
                     request.input.uri,
-                    bounds,
+                    rawBounds,
                     operation.width,
                     operation.height,
                 )
-                is ImageOperation.Crop -> decodeCrop(request.input.uri, operation)
+                is ImageOperation.Crop ->
+                    if (sourceOrientation == androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL ||
+                        sourceOrientation == androidx.exifinterface.media.ExifInterface.ORIENTATION_UNDEFINED
+                    ) {
+                        decodeCrop(request.input.uri, operation)
+                    } else {
+                        decodeFullResolution(request.input.uri)
+                    }
                 is ImageOperation.Convert,
                 is ImageOperation.Rotate,
                 is ImageOperation.Flip,
@@ -117,23 +130,32 @@ public class AndroidImageProcessor(
             )
             ownedBitmaps += decoded
 
+            val normalized = exif.normalizeBitmap(decoded, sourceOrientation)
+            if (normalized !== decoded) ownedBitmaps += normalized
+
             coroutineContext.ensureActive()
             onProgress(ProcessingProgress(55, 100, "Applying operation"))
 
             val processed = when (operation) {
-                is ImageOperation.Resize -> resize(decoded, operation.width, operation.height)
-                is ImageOperation.Crop -> decoded
-                is ImageOperation.Convert -> prepareForConversion(decoded, operation.mimeType)
-                is ImageOperation.Rotate -> rotate(decoded, operation.degrees)
-                is ImageOperation.Flip -> flip(decoded, operation.horizontal, operation.vertical)
+                is ImageOperation.Resize -> resize(normalized, operation.width, operation.height)
+                is ImageOperation.Crop -> if (sourceOrientation == androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL ||
+                    sourceOrientation == androidx.exifinterface.media.ExifInterface.ORIENTATION_UNDEFINED
+                ) {
+                    normalized
+                } else {
+                    cropBitmap(normalized, operation)
+                }
+                is ImageOperation.Convert -> prepareForConversion(normalized, operation.mimeType)
+                is ImageOperation.Rotate -> rotate(normalized, operation.degrees)
+                is ImageOperation.Flip -> flip(normalized, operation.horizontal, operation.vertical)
                 is ImageOperation.ColorAdjust -> adjustColors(
-                    decoded,
+                    normalized,
                     operation.brightness,
                     operation.contrast,
                     operation.saturation,
                 )
-                is ImageOperation.Compress -> decoded
-                ImageOperation.Inspect -> decoded
+                is ImageOperation.Compress -> normalized
+                ImageOperation.Inspect -> normalized
             }
 
             if (processed !== decoded) ownedBitmaps += processed
@@ -160,6 +182,13 @@ public class AndroidImageProcessor(
                             height = height,
                             mimeType = operation.mimeType.lowercase(),
                             byteCount = compressed.byteCount,
+                            metadata = exif.writeMetadata(
+                                request.input.uri,
+                                compressed.file,
+                                operation.mimeType.lowercase(),
+                                request.metadataPolicy,
+                                orientationAlreadyNormalized = true,
+                            ),
                         ),
                     ),
                 )
@@ -169,13 +198,19 @@ public class AndroidImageProcessor(
 
             val mimeType = when (operation) {
                 is ImageOperation.Convert -> ImageFormatPolicy.normalizeOutputMimeType(operation.mimeType)
-                else -> when (request.input.mimeType ?: resolver.getType(request.input.uri)) {
-                    "image/png", "image/webp", "image/jpeg" -> request.input.mimeType ?: resolver.getType(request.input.uri)!!
-                    else -> "image/jpeg"
-                }
+                else -> ImageFormatPolicy.normalizeOutputMimeType(
+                    request.input.mimeType ?: resolver.getType(request.input.uri) ?: "image/jpeg",
+                ).takeIf { ImageFormatPolicy.isSupportedOutput(it) } ?: "image/jpeg"
             }
             val output = encode(processed, mimeType)
             outputFile = output.file
+            val metadata = exif.writeMetadata(
+                request.input.uri,
+                output.file,
+                mimeType,
+                request.metadataPolicy,
+                orientationAlreadyNormalized = true,
+            )
             val outputWidth = processed.width
             val outputHeight = processed.height
             coroutineContext.ensureActive()
@@ -189,6 +224,7 @@ public class AndroidImageProcessor(
                         height = outputHeight,
                         mimeType = mimeType,
                         byteCount = output.byteCount,
+                        metadata = metadata,
                     ),
                 ),
             )
@@ -237,7 +273,17 @@ public class AndroidImageProcessor(
             pixels <= policy.maxBitmapBytes / 4L
     }
 
-    private fun isCropWithinBounds(
+    private fun orientedBounds(bounds: BitmapFactory.Options, orientation: Int): Pair<Int, Int> {
+        val swaps = orientation == androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 ||
+            orientation == androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 ||
+            orientation == androidx.exifinterface.media.ExifInterface.ORIENTATION_TRANSPOSE ||
+            orientation == androidx.exifinterface.media.ExifInterface.ORIENTATION_TRANSVERSE
+        return if (swaps) bounds.outHeight to bounds.outWidth else bounds.outWidth to bounds.outHeight
+    }
+
+    private fun cropBitmap(source: Bitmap, crop: ImageOperation.Crop): Bitmap =
+        Bitmap.createBitmap(source, crop.left, crop.top, crop.width, crop.height)
+
         crop: ImageOperation.Crop,
         sourceWidth: Int,
         sourceHeight: Int,
@@ -358,6 +404,9 @@ public class AndroidImageProcessor(
         }
         return sample
     }
+
+    private fun cropBitmap(source: Bitmap, crop: ImageOperation.Crop): Bitmap =
+        Bitmap.createBitmap(source, crop.left, crop.top, crop.width, crop.height)
 
     private fun resize(source: Bitmap, width: Int, height: Int): Bitmap {
         if (source.width == width && source.height == height) return source
