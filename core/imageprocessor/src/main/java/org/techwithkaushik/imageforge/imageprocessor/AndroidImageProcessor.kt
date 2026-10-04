@@ -4,9 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.BitmapRegionDecoder
-import android.graphics.Matrix
 import android.net.Uri
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.CancellationException
@@ -159,13 +157,13 @@ public class AndroidImageProcessor(
             BitmapRegionDecoder.newInstance(input, false)
         } ?: return null
 
-        return regionDecoder.use {
+        return try {
             val sample = calculateSampleSize(crop.width, crop.height)
             BitmapFactory.Options().apply {
                 inSampleSize = sample
                 inPreferredConfig = Bitmap.Config.ARGB_8888
             }.let { options ->
-                it.decodeRegion(
+                regionDecoder.decodeRegion(
                     android.graphics.Rect(
                         crop.left,
                         crop.top,
@@ -175,6 +173,8 @@ public class AndroidImageProcessor(
                     options,
                 )
             }
+        } finally {
+            regionDecoder.recycle()
         }
     }
 
