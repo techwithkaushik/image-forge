@@ -106,7 +106,7 @@ jobs:
           if [ -x ./gradlew ]; then
             ./gradlew :core:common:test :core:imageprocessor:test :core:media:test :core:storage:test :core:ocr:test --no-daemon --build-cache --stacktrace
           else
-            gradle :core:common:test :core:imageprocessor:test --no-daemon --build-cache --stacktrace
+            gradle :core:common:test :core:imageprocessor:test :core:ocr:test --no-daemon --build-cache --stacktrace
           fi
 
       - name: Build release APK
@@ -119,9 +119,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ -x ./gradlew ]; then
-            ./gradlew :app:assembleRelease --no-daemon --build-cache --stacktrace
+            ./gradlew :core:ocr:assembleRelease :app:assembleRelease --no-daemon --build-cache --stacktrace
           else
-            gradle :app:assembleRelease --no-daemon --build-cache --stacktrace
+            gradle :core:ocr:assembleRelease :app:assembleRelease --no-daemon --build-cache --stacktrace
           fi
 
       - name: Verify APK
