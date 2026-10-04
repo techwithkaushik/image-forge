@@ -53,6 +53,26 @@ public class AndroidImageProcessor(
                 )
             }
 
+            if (operation is ImageOperation.PassportPhoto) {
+                val requestedPixels = operation.options.preset.widthPx.toLong() * operation.options.preset.heightPx.toLong()
+                if (!isWithinDecodeBudget(bounds.first, bounds.second) ||
+                    requestedPixels > policy.maxOutputPixels ||
+                    requestedPixels > policy.maxBitmapBytes / 4L
+                ) {
+                    return@withContext ForgeResult.Failure(
+                        ForgeError.InvalidInput("Passport processing exceeds the configured bitmap memory budget."),
+                    )
+                }
+            }
+
+            if (operation is ImageOperation.ExtractSignature &&
+                !isWithinDecodeBudget(bounds.first, bounds.second)
+            ) {
+                return@withContext ForgeResult.Failure(
+                    ForgeError.InvalidInput("Signature extraction requires an input within the configured bitmap memory budget."),
+                )
+            }
+
             if (operation is ImageOperation.Resize) {
                 val requestedPixels = operation.width.toLong() * operation.height.toLong()
                 if (requestedPixels > policy.maxOutputPixels ||
@@ -123,6 +143,8 @@ public class AndroidImageProcessor(
                     } else {
                         decodeFullResolution(request.input.uri)
                     }
+                is ImageOperation.PassportPhoto,
+                is ImageOperation.ExtractSignature,
                 is ImageOperation.Convert,
                 is ImageOperation.Rotate,
                 is ImageOperation.Flip,
@@ -141,6 +163,8 @@ public class AndroidImageProcessor(
 
             val processed = when (operation) {
                 is ImageOperation.Resize -> resize(normalized, operation.width, operation.height)
+                is ImageOperation.PassportPhoto -> createPassportPhoto(normalized, operation.options)
+                is ImageOperation.ExtractSignature -> extractSignature(normalized, operation.options)
                 is ImageOperation.Crop -> if (sourceOrientation == androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL ||
                     sourceOrientation == androidx.exifinterface.media.ExifInterface.ORIENTATION_UNDEFINED
                 ) {
@@ -251,7 +275,9 @@ public class AndroidImageProcessor(
     }
 
     private fun ImageOperation.requiresFullResolution(): Boolean =
-        this is ImageOperation.Convert ||
+        this is ImageOperation.PassportPhoto ||
+            this is ImageOperation.ExtractSignature ||
+            this is ImageOperation.Convert ||
             this is ImageOperation.Rotate ||
             this is ImageOperation.Flip ||
             this is ImageOperation.ColorAdjust
@@ -461,6 +487,115 @@ public class AndroidImageProcessor(
         )
         return result
     }
+
+    private fun createPassportPhoto(source: Bitmap, options: PassportOptions): Bitmap {
+        val targetWidth = options.preset.widthPx
+        val targetHeight = options.preset.heightPx
+        val sourceRatio = source.width.toDouble() / source.height.toDouble()
+        val targetRatio = targetWidth.toDouble() / targetHeight.toDouble()
+
+        val cropWidth: Int
+        val cropHeight: Int
+        if (sourceRatio > targetRatio) {
+            cropHeight = source.height
+            cropWidth = (source.height * targetRatio).toInt().coerceAtLeast(1)
+        } else {
+            cropWidth = source.width
+            cropHeight = (source.width / targetRatio).toInt().coerceAtLeast(1)
+        }
+
+        val left = ((source.width - cropWidth) / 2).coerceAtLeast(0)
+        val top = ((source.height - cropHeight) / 2).coerceAtLeast(0)
+        val cropped = Bitmap.createBitmap(source, left, top, cropWidth, cropHeight)
+        val resized = if (cropWidth == targetWidth && cropHeight == targetHeight) {
+            cropped
+        } else {
+            Bitmap.createScaledBitmap(cropped, targetWidth, targetHeight, true)
+        }
+        val result = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+        Canvas(result).apply {
+            drawColor(options.backgroundArgb)
+            drawBitmap(resized, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+        }
+        if (cropped !== source && cropped !== resized && !cropped.isRecycled) cropped.recycle()
+        if (resized !== source && resized !== result && !resized.isRecycled) resized.recycle()
+        return result
+    }
+
+    private fun extractSignature(source: Bitmap, options: SignatureOptions): Bitmap {
+        val width = source.width
+        val height = source.height
+        var minX = width
+        var minY = height
+        var maxX = -1
+        var maxY = -1
+        var inkPixels = 0
+
+        val pixels = IntArray(width)
+        for (y in 0 until height) {
+            coroutineContextOrThrow()
+            source.getPixels(pixels, 0, width, 0, y, width, 1)
+            for (x in 0 until width) {
+                val color = pixels[x]
+                val alpha = Color.alpha(color)
+                val luminance = (Color.red(color) * 299 + Color.green(color) * 587 + Color.blue(color) * 114) / 1000
+                if (alpha >= 32 && luminance <= options.luminanceThreshold) {
+                    inkPixels++
+                    minX = minOf(minX, x)
+                    minY = minOf(minY, y)
+                    maxX = maxOf(maxX, x)
+                    maxY = maxOf(maxY, y)
+                }
+            }
+        }
+
+        if (inkPixels < options.minimumInkPixels || maxX < minX || maxY < minY) {
+            throw IllegalArgumentException("No usable signature strokes were detected.")
+        }
+
+        val padding = options.paddingPx
+        val left = (minX - padding).coerceAtLeast(0)
+        val top = (minY - padding).coerceAtLeast(0)
+        val right = (maxX + padding + 1).coerceAtMost(width)
+        val bottom = (maxY + padding + 1).coerceAtMost(height)
+
+        val result = Bitmap.createBitmap(right - left, bottom - top, Bitmap.Config.ARGB_8888)
+        Canvas(result).drawColor(Color.WHITE)
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+        val matrix = android.graphics.ColorMatrix(
+            floatArrayOf(
+                0f, 0f, 0f, 0f, 0f,
+                0f, 0f, 0f, 0f, 0f,
+                0f, 0f, 0f, 0f, 0f,
+                0f, 0f, 0f, 1f, 0f,
+            ),
+        )
+        Canvas(result).drawBitmap(source, -left.toFloat(), -top.toFloat(), paint)
+        if (options.removeBorderNoise) {
+            binarizeSignature(result, options.luminanceThreshold)
+        }
+        return result
+    }
+
+    private fun binarizeSignature(bitmap: Bitmap, threshold: Int) {
+        val pixels = IntArray(bitmap.width)
+        for (y in 0 until bitmap.height) {
+            coroutineContextOrThrow()
+            bitmap.getPixels(pixels, 0, bitmap.width, 0, y, bitmap.width, 1)
+            for (x in pixels.indices) {
+                val color = pixels[x]
+                val luminance = (Color.red(color) * 299 + Color.green(color) * 587 + Color.blue(color) * 114) / 1000
+                pixels[x] = if (luminance <= threshold) Color.BLACK else Color.WHITE
+            }
+            bitmap.setPixels(pixels, 0, bitmap.width, 0, y, bitmap.width, 1)
+        }
+    }
+
+    private fun coroutineContextOrThrow() {
+        if (!coroutineContextIsActive()) throw CancellationException()
+    }
+
+    private fun coroutineContextIsActive(): Boolean = true
 
     private fun prepareForConversion(source: Bitmap, mimeType: String): Bitmap {
         if (ImageFormatPolicy.normalizeOutputMimeType(mimeType) != ImageFormatPolicy.JPEG) {
