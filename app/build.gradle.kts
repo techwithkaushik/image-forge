@@ -32,6 +32,17 @@ android {
         buildConfig = false
     }
 
+    // Produce one lean release APK per CPU architecture.
+    // The universal APK is intentionally disabled so CI artifacts stay architecture-specific.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+            isUniversalApk = false
+        }
+    }
+
     if (hasReleaseSigning) {
         signingConfigs {
             create("release") {
