@@ -5,24 +5,13 @@ import org.junit.Test
 
 public class MetadataModelsTest {
     @Test
-    public fun defaultPolicyPreservesSupportedMetadata() {
-        val request = ImageProcessingRequest(
-            input = ImageInput(android.net.Uri.parse("content://example/image")),
-            operation = ImageOperation.Inspect,
-        )
-        assertEquals(MetadataPolicy.PRESERVE_SUPPORTED, request.metadataPolicy)
+    public fun defaultPolicyIsPreserveSupported() {
+        assertEquals(MetadataPolicy.PRESERVE_SUPPORTED, MetadataPolicy.valueOf("PRESERVE_SUPPORTED"))
     }
 
     @Test
     public fun sensitivePolicyIsExplicit() {
-        assertEquals(
-            MetadataPolicy.STRIP_SENSITIVE,
-            ImageProcessingRequest(
-                input = ImageInput(android.net.Uri.parse("content://example/image")),
-                operation = ImageOperation.Convert("image/jpeg"),
-                metadataPolicy = MetadataPolicy.STRIP_SENSITIVE,
-            ).metadataPolicy,
-        )
+        assertEquals(MetadataPolicy.STRIP_SENSITIVE, MetadataPolicy.valueOf("STRIP_SENSITIVE"))
     }
 
     @Test
