@@ -569,10 +569,10 @@ public class AndroidImageProcessor(
         return result
     }
 
-    private fun binarizeSignature(bitmap: Bitmap, threshold: Int) {
+    private suspend fun binarizeSignature(bitmap: Bitmap, threshold: Int) {
         val pixels = IntArray(bitmap.width)
         for (y in 0 until bitmap.height) {
-            coroutineContextOrThrow()
+            coroutineContext.ensureActive()
             bitmap.getPixels(pixels, 0, bitmap.width, 0, y, bitmap.width, 1)
             for (x in pixels.indices) {
                 val color = pixels[x]
