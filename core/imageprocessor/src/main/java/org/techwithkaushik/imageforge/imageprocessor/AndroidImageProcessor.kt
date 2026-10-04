@@ -94,6 +94,8 @@ public class AndroidImageProcessor(
             if (operation is ImageOperation.Compress) {
                 coroutineContext.ensureActive()
                 onProgress(ProcessingProgress(75, 100, "Searching target size"))
+                val outputWidth = processed.width
+                val outputHeight = processed.height
                 val output = compressToTarget(processed, operation)
                 processed.recycle()
                 if (output == null) {
@@ -108,8 +110,8 @@ public class AndroidImageProcessor(
                     ImageArtifact(
                         uri = output.uri,
                         metadata = ImageMetadata(
-                            width = processed.width,
-                            height = processed.height,
+                            width = outputWidth,
+                            height = outputHeight,
                             mimeType = operation.mimeType,
                             byteCount = output.byteCount,
                         ),
@@ -238,7 +240,7 @@ public class AndroidImageProcessor(
         val byteCount: Long,
     )
 
-    private fun compressToTarget(bitmap: Bitmap, operation: ImageOperation.Compress): EncodedOutput? {
+    private suspend fun compressToTarget(bitmap: Bitmap, operation: ImageOperation.Compress): EncodedOutput? {
         val target = operation.targetBytes
         var low = 1
         var high = 100
@@ -278,8 +280,8 @@ public class AndroidImageProcessor(
         }
     }
 
-    private fun coroutineContextOrThrowCancellation() {
-        kotlinx.coroutines.runBlocking { coroutineContext.ensureActive() }
+    private suspend fun coroutineContextOrThrowCancellation() {
+        coroutineContext.ensureActive()
     }
 
     private fun encode(bitmap: Bitmap, mimeType: String, quality: Int = 92): EncodedOutput {
@@ -304,7 +306,7 @@ public class AndroidImageProcessor(
         }
         try {
             FileOutputStream(file).use { output ->
-                check(bitmap.compress(format, 92, output)) { "Unable to encode image." }
+                check(bitmap.compress(format, quality, output)) { "Unable to encode image." }
             }
             return EncodedOutput(
                 file = file,
