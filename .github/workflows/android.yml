@@ -118,7 +118,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew :app:lintRelease --no-daemon --build-cache --stacktrace
+          if [ -x ./gradlew ]; then
+            ./gradlew :app:lintRelease --no-daemon --build-cache --stacktrace
+          else
+            gradle :app:lintRelease --no-daemon --build-cache --stacktrace
+          fi
 
       - name: Run unit tests
         shell: bash
