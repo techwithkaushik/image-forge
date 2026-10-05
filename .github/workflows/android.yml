@@ -205,7 +205,7 @@ jobs:
             test -n "${EXPECTED_ABIS[$NAME]:-}"
             BADGING="$("$AAPT2" dump badging "$APK")"
             grep -Fq "package: name='$EXPECTED_PACKAGE' versionCode='$EXPECTED_VERSION_CODE' versionName='$EXPECTED_VERSION_NAME'" <<<"$BADGING"
-            grep -Fq "native-code='${EXPECTED_ABIS[$NAME]}'" <<<"$BADGING"
+            grep -Fq "native-code: '${EXPECTED_ABIS[$NAME]}'" <<<"$BADGING"
             "$APKSIGNER" verify --verbose "$APK"
           done
           echo "Release smoke validation passed for all architecture APKs."
