@@ -21,6 +21,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -265,16 +266,16 @@ public fun DashboardScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "Pi",
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text("Pi7 IMAGE TOOL")
-                        }
+                        Text(
+                            "IMAGE TOOL",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                        )
                     },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = Color.White,
+                    ),
                 )
             },
         ) { padding ->
@@ -285,7 +286,7 @@ public fun DashboardScreen(
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(
                     start = 20.dp,
                     end = 20.dp,
-                    top = 28.dp,
+                    top = 20.dp,
                     bottom = 40.dp,
                 ),
                 verticalArrangement = Arrangement.spacedBy(22.dp),
