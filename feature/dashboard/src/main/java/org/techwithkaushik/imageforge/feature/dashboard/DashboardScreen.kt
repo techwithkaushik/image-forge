@@ -341,7 +341,7 @@ public fun DashboardScreen(
                 if (filteredSections.isEmpty()) {
                     item {
                         Text(
-                            "No tools found for "$query".",
+                            "No tools found for \\"$query\\".",
                             modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
                             textAlign = TextAlign.Center,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
