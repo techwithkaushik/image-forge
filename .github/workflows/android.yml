@@ -211,7 +211,6 @@ jobs:
           echo "Release smoke validation passed for all architecture APKs."
 
       - name: Upload arm64-v8a APK
-        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: image-forge-arm64-v8a
@@ -220,7 +219,6 @@ jobs:
           archive: false
 
       - name: Upload armeabi-v7a APK
-        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: image-forge-armeabi-v7a
@@ -229,7 +227,6 @@ jobs:
           archive: false
 
       - name: Upload x86_64 APK
-        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: image-forge-x86_64
@@ -238,7 +235,6 @@ jobs:
           archive: false
 
       - name: Upload x86 APK
-        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: image-forge-x86
