@@ -91,29 +91,6 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
 
     fun updateWidth(value: String) {
         if (value.all(Char::isDigit) && value.length <= 5) {
-            _state.value = _state.value.copy(width = value)
-        }
-    }
-
-    fun updateHeight(value: String) {
-        if (value.all(Char::isDigit) && value.length <= 5) {
-            val current = _state.value
-            if (current.keepAspectRatio) {
-                val height = value.toIntOrNull()
-                val ow = current.originalWidth
-                val oh = current.originalHeight
-                if (height != null && height > 0 && ow > 0 && oh > 0) {
-                    val width = (height.toLong() * ow / oh).coerceAtLeast(1L).coerceAtMost(99_999L)
-                    _state.value = current.copy(height = value, width = width.toString())
-                    return
-                }
-            }
-            _state.value = current.copy(height = value)
-        }
-    }
-
-    fun updateWidth(value: String) {
-        if (value.all(Char::isDigit) && value.length <= 5) {
             val current = _state.value
             if (current.keepAspectRatio) {
                 val width = value.toIntOrNull()
