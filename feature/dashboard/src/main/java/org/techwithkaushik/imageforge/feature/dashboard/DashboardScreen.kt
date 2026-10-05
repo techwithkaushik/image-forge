@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
@@ -301,7 +302,7 @@ public fun DashboardScreen(
                     OutlinedTextField(
                         value = query,
                         onValueChange = { query = it },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
                         singleLine = true,
                         placeholder = { Text("Search Tool") },
                     )
@@ -311,9 +312,10 @@ public fun DashboardScreen(
                     item {
                         OutlinedButton(
                             onClick = onImportImage,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(8.dp),
                         ) {
-                            Text("Select Image / Start")
+                            Text("Select Image / Start", style = MaterialTheme.typography.labelLarge)
                         }
                     }
                 }
@@ -369,19 +371,22 @@ private fun DashboardToolSection(
         section.tools.chunked(2).forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 row.forEach { tool ->
                     OutlinedButton(
                         onClick = { onToolClick(tool) },
                         modifier = Modifier
                             .weight(1f)
-                            .height(78.dp),
+                            .height(56.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                     ) {
                         Text(
                             tool,
                             textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.bodyLarge,
+                            maxLines = 2,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
