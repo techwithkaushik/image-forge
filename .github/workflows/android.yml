@@ -114,6 +114,12 @@ jobs:
           fi
           echo "Offline/privacy guardrails passed."
 
+      - name: Run lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew :app:lintRelease --no-daemon --build-cache --stacktrace
+
       - name: Run unit tests
         shell: bash
         run: |
@@ -173,6 +179,33 @@ jobs:
             "$APKSIGNER" verify --verbose "$APK"
           done
 
+      - name: Release smoke validation
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK_DIR="app/build/outputs/apk/release"
+          APKSIGNER="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner"
+          AAPT2="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/aapt2"
+          EXPECTED_PACKAGE="org.techwithkaushik.imageforge"
+          EXPECTED_VERSION_CODE="1"
+          EXPECTED_VERSION_NAME="0.1.0"
+          declare -A EXPECTED_ABIS=(
+            [app-arm64-v8a-release.apk]="arm64-v8a"
+            [app-armeabi-v7a-release.apk]="armeabi-v7a"
+            [app-x86_64-release.apk]="x86_64"
+            [app-x86-release.apk]="x86"
+          )
+          for APK in "$APK_DIR"/app-*-release.apk; do
+            NAME="$(basename "$APK")"
+            test -n "${EXPECTED_ABIS[$NAME]:-}"
+            BADGING="$("$AAPT2" dump badging "$APK")"
+            grep -Fq "package: name='$EXPECTED_PACKAGE' versionCode='$EXPECTED_VERSION_CODE' versionName='$EXPECTED_VERSION_NAME'" <<<"$BADGING"
+            grep -Fq "native-code='${EXPECTED_ABIS[$NAME]}'" <<<"$BADGING"
+            "$APKSIGNER" verify --verbose "$APK"
+          done
+          echo "Release smoke validation passed for all architecture APKs."
+
       - name: Upload arm64-v8a APK
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
@@ -206,5 +239,14 @@ jobs:
         with:
           name: image-forge-x86
           path: app/build/outputs/apk/release/app-x86-release.apk
+          if-no-files-found: error
+          archive: false
+
+      - name: Upload Phase 18 APK size report
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-forge-phase18-apk-size-report
+          path: build/image-forge-phase18-apk-size.txt
           if-no-files-found: error
           archive: false
