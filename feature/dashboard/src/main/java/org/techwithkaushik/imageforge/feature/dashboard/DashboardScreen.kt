@@ -16,7 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -310,10 +310,10 @@ public fun DashboardScreen(
 
                 if (query.isBlank()) {
                     item {
-                        OutlinedButton(
+                        Button(
                             onClick = onImportImage,
                             modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(4.dp),
                         ) {
                             Text("Select Image / Start", style = MaterialTheme.typography.labelLarge)
                         }
@@ -374,20 +374,20 @@ private fun DashboardToolSection(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 row.forEach { tool ->
-                    OutlinedButton(
+                    Button(
                         onClick = { onToolClick(tool) },
                         modifier = Modifier
                             .weight(1f)
-                            .height(56.dp),
-                        shape = RoundedCornerShape(10.dp),
+                            .height(48.dp),
+                        shape = RoundedCornerShape(4.dp),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                     ) {
                         Text(
                             tool,
                             textAlign = TextAlign.Center,
                             maxLines = 2,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimary,
                         )
                     }
                 }
