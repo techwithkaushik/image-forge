@@ -7,6 +7,12 @@ public class StorageNamePolicyTest {
     @Test
     public fun pathSeparatorsAreRemoved() {
         assertEquals("profile_photo.png", StorageNamePolicy.sanitize("../profile_photo.png"))
+        assertEquals("profile_photo.png", StorageNamePolicy.sanitize("..\\profile_photo.png"))
+    }
+
+    @Test
+    public fun surroundingWhitespaceIsTrimmed() {
+        assertEquals("profile.png", StorageNamePolicy.sanitize("  profile.png  "))
     }
 
     @Test
