@@ -99,6 +99,21 @@ jobs:
           fileName: dev_keystore.jks
           encodedString: ${{ secrets.SIGNING_KEYSTORE }}
 
+      - name: Validate offline privacy guardrails
+        shell: bash
+        run: |
+          set -euo pipefail
+          MANIFEST="app/src/main/AndroidManifest.xml"
+          if grep -Eq 'android.permission.INTERNET|android.permission.ACCESS_NETWORK_STATE' "$MANIFEST"; then
+            echo "Network permission found in app manifest; core ImageForge must remain offline." >&2
+            exit 1
+          fi
+          if grep -R -nE 'OkHttpClient|Retrofit|HttpURLConnection|java\\.net\\.http|URLConnection' app/src core/*/src/main feature/*/src/main --include='*.kt' --include='*.java' 2>/dev/null; then
+            echo "Potential network client/API usage found in core/application source." >&2
+            exit 1
+          fi
+          echo "Offline/privacy guardrails passed."
+
       - name: Run unit tests
         shell: bash
         run: |
