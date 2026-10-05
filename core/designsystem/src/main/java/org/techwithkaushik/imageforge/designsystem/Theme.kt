@@ -11,13 +11,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 private val ImageForgeLightColors = lightColorScheme(
-    primary = Color(0xFF2457D6),
+    primary = Color(0xFF4F58A8),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFDCE2FF),
-    onPrimaryContainer = Color(0xFF00164D),
+    primaryContainer = Color(0xFFE4E5FF),
+    onPrimaryContainer = Color(0xFF11184A),
     secondary = Color(0xFF5A5D72),
-    surface = Color(0xFFFAF8FF),
-    surfaceContainer = Color(0xFFEFEFF7),
+    surface = Color(0xFFFFFFFF),
+    surfaceContainer = Color(0xFFF4F4FA),
 )
 
 private val ImageForgeDarkColors = darkColorScheme(
