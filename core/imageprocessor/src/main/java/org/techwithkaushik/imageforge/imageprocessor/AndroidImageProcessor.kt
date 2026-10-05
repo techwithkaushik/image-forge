@@ -156,7 +156,10 @@ public class AndroidImageProcessor(
             ownedBitmaps += decoded
 
             val normalized = exif.normalizeBitmap(decoded, sourceOrientation)
-            if (normalized !== decoded) ownedBitmaps += normalized
+            if (normalized !== decoded) {
+                ownedBitmaps += normalized
+                if (!decoded.isRecycled) decoded.recycle()
+            }
 
             coroutineContext.ensureActive()
             onProgress(ProcessingProgress(55, 100, "Applying operation"))
@@ -186,6 +189,7 @@ public class AndroidImageProcessor(
             }
 
             if (processed !== decoded) ownedBitmaps += processed
+            if (processed !== normalized && !normalized.isRecycled) normalized.recycle()
 
             coroutineContext.ensureActive()
 
