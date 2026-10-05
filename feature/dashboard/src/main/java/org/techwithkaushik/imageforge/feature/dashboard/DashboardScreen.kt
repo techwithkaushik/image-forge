@@ -2,7 +2,6 @@ package org.techwithkaushik.imageforge.feature.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -175,7 +174,17 @@ public fun DashboardScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("IMAGE TOOL") },
+                    title = {
+                        Text(
+                            "IMAGE TOOL",
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                    },
+                    colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
                 )
             },
         ) { padding ->
