@@ -29,7 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.compose.viewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -103,6 +103,22 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
                 }
             }
             _state.value = current.copy(width = value)
+        }
+    }
+
+    fun updateHeight(value: String) {
+        if (value.all(Char::isDigit) && value.length <= 5) {
+            val current = _state.value
+            if (current.keepAspectRatio) {
+                val height = value.toIntOrNull()
+                if (height != null && height > 0 && current.originalWidth > 0 && current.originalHeight > 0) {
+                    val width = (height.toLong() * current.originalWidth / current.originalHeight)
+                        .coerceAtLeast(1L).coerceAtMost(99_999L)
+                    _state.value = current.copy(height = value, width = width.toString())
+                    return
+                }
+            }
+            _state.value = current.copy(height = value)
         }
     }
 
@@ -264,7 +280,7 @@ public fun EditorScreen(
                 Text("Selected tool: ${tool ?: "Image Editor"}")
             }
             state.progress?.let {
-                Text("${it.percent}% — ${it.message}")
+                Text("${it.completedSteps}/${it.totalSteps} — ${it.message ?: "Processing"}")
                 if (state.busy) CircularProgressIndicator()
             }
             state.message?.let {
