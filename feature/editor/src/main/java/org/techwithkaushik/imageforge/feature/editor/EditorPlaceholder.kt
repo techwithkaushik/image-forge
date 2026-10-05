@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +50,9 @@ internal data class EditorUiState(
     val sourceUri: Uri? = null,
     val width: String = "",
     val height: String = "",
+    val keepAspectRatio: Boolean = true,
+    val originalWidth: Int = 0,
+    val originalHeight: Int = 0,
     val outputUri: Uri? = null,
     val progress: org.techwithkaushik.imageforge.common.ProcessingProgress? = null,
     val busy: Boolean = false,
@@ -77,6 +81,8 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
                     _state.value = _state.value.copy(
                         width = bounds.outWidth.toString(),
                         height = bounds.outHeight.toString(),
+                        originalWidth = bounds.outWidth,
+                        originalHeight = bounds.outHeight,
                     )
                 }
             }
@@ -91,7 +97,46 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
 
     fun updateHeight(value: String) {
         if (value.all(Char::isDigit) && value.length <= 5) {
-            _state.value = _state.value.copy(height = value)
+            val current = _state.value
+            if (current.keepAspectRatio) {
+                val height = value.toIntOrNull()
+                val ow = current.originalWidth
+                val oh = current.originalHeight
+                if (height != null && height > 0 && ow > 0 && oh > 0) {
+                    val width = (height.toLong() * ow / oh).coerceAtLeast(1L).coerceAtMost(99_999L)
+                    _state.value = current.copy(height = value, width = width.toString())
+                    return
+                }
+            }
+            _state.value = current.copy(height = value)
+        }
+    }
+
+    fun updateWidth(value: String) {
+        if (value.all(Char::isDigit) && value.length <= 5) {
+            val current = _state.value
+            if (current.keepAspectRatio) {
+                val width = value.toIntOrNull()
+                val ow = current.originalWidth
+                val oh = current.originalHeight
+                if (width != null && width > 0 && ow > 0 && oh > 0) {
+                    val height = (width.toLong() * oh / ow).coerceAtLeast(1L).coerceAtMost(99_999L)
+                    _state.value = current.copy(width = value, height = height.toString())
+                    return
+                }
+            }
+            _state.value = current.copy(width = value)
+        }
+    }
+
+    fun setKeepAspectRatio(enabled: Boolean) {
+        val current = _state.value
+        _state.value = current.copy(keepAspectRatio = enabled)
+        if (enabled && current.originalWidth > 0 && current.originalHeight > 0) {
+            val width = current.width.toIntOrNull() ?: return
+            val height = (width.toLong() * current.originalHeight / current.originalWidth)
+                .coerceAtLeast(1L).coerceAtMost(99_999L)
+            _state.value = _state.value.copy(height = height.toString())
         }
     }
 
@@ -190,6 +235,10 @@ public fun EditorScreen(
                 }
             } else if (tool?.contains("Resize Image", ignoreCase = true) == true) {
                 Text("Resize Image by Pixel", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    "Original: ${state.originalWidth} × ${state.originalHeight} px",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -209,12 +258,20 @@ public fun EditorScreen(
                         modifier = Modifier.weight(1f),
                     )
                 }
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = state.keepAspectRatio,
+                        onCheckedChange = viewModel::setKeepAspectRatio,
+                    )
+                    Text("Keep aspect ratio")
+                }
                 Button(
                     onClick = viewModel::resize,
                     enabled = !state.busy,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Resize Image")
+                    if (state.busy) CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp), strokeWidth = 2.dp)
+                    Text(if (state.busy) "Resizing…" else "Resize Image")
                 }
                 if (state.outputUri != null) {
                     Button(
