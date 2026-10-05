@@ -246,7 +246,7 @@ private val sections = listOf(
 @Composable
 public fun DashboardScreen(
     onImportImage: () -> Unit = {},
-    onOpenEditor: () -> Unit = {},
+    onOpenEditor: (String) -> Unit = {},
     onOpenDocuments: () -> Unit = {},
 ) {
     var query by remember { mutableStateOf("") }
@@ -335,7 +335,7 @@ public fun DashboardScreen(
                             ) {
                                 onOpenDocuments()
                             } else {
-                                onOpenEditor()
+                                onOpenEditor(tool)
                             }
                         },
                     )
