@@ -15,7 +15,7 @@ import org.techwithkaushik.imageforge.feature.editor.EditorScreen
 private data object DashboardRoute
 
 @Serializable
-private data class EditorRoute(val imageUri: String? = null)
+private data class EditorRoute(val imageUri: String? = null, val tool: String? = null)
 
 @Serializable
 private data object DocumentsRoute
@@ -43,7 +43,7 @@ internal fun ImageForgeNavHost(
     ) {
         composable<DashboardRoute> {
             DashboardScreen(
-                onOpenEditor = { navController.navigate(EditorRoute()) },
+                onOpenEditor = { tool -> navController.navigate(EditorRoute(tool = tool)) },
                 onImportImage = onPickImage,
                 onOpenDocuments = { navController.navigate(DocumentsRoute) },
             )
@@ -52,6 +52,7 @@ internal fun ImageForgeNavHost(
             val route = entry.toRoute<EditorRoute>()
             EditorScreen(
                 imageUri = route.imageUri,
+                tool = route.tool,
                 onImport = onPickImage,
                 onBack = { navController.popBackStack() },
             )
