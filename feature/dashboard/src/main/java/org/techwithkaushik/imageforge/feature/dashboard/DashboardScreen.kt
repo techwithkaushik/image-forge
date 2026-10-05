@@ -272,7 +272,7 @@ public fun DashboardScreen(
                                 fontWeight = FontWeight.Bold,
                             )
                             Spacer(Modifier.width(4.dp))
-                            Text("IMAGE TOOL")
+                            Text("Pi7 IMAGE TOOL")
                         }
                     },
                 )
