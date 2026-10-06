@@ -3,6 +3,9 @@ package org.techwithkaushik.imageforge.feature.editor
 import android.app.Application
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.graphics.pdf.PdfDocument
+import java.io.File
+import java.io.FileOutputStream
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -178,6 +181,41 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
+    fun imageToPdf() {
+        val current = _state.value
+        val uri = current.sourceUri ?: return message("Import an image first.")
+        viewModelScope.launch(Dispatchers.IO) {
+            _state.value = current.copy(busy = true, message = null, outputUri = null)
+            try {
+                val bitmap = resolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it) }
+                    ?: throw IllegalArgumentException("Unable to decode image for PDF.")
+                val document = PdfDocument()
+                val pageInfo = PdfDocument.PageInfo.Builder(bitmap.width, bitmap.height, 1).create()
+                val page = document.startPage(pageInfo)
+                page.canvas.drawBitmap(bitmap, 0f, 0f, null)
+                document.finishPage(page)
+                val file = File(getApplication<Application>().cacheDir, "imageforge-${System.currentTimeMillis()}.pdf")
+                FileOutputStream(file).use { document.writeTo(it) }
+                document.close()
+                bitmap.recycle()
+                _state.value = _state.value.copy(busy = false, outputUri = Uri.fromFile(file), message = "PDF created.")
+            } catch (t: Throwable) {
+                _state.value = _state.value.copy(busy = false, message = "PDF failed: ${t.message ?: "Unable to create PDF."}")
+            }
+        }
+    }
+
+    fun savePdf() {
+        val output = _state.value.outputUri ?: return message("Create the PDF first.")
+        viewModelScope.launch {
+            _state.value = _state.value.copy(busy = true)
+            val result = storage.saveImage(output, StorageDestination.Downloads, "ImageForge-${System.currentTimeMillis()}.pdf", "application/pdf")
+            _state.value = _state.value.copy(busy = false, message = when (result) {
+                is ForgeResult.Success -> "PDF saved to Downloads/ImageForge."
+                is ForgeResult.Failure -> "PDF save failed: ${result.error}"
+            })
+        }
+    }
     fun recognizeText() {
         val uri = _state.value.sourceUri ?: return message("Import an image first.")
         viewModelScope.launch {
@@ -337,6 +375,7 @@ public fun EditorScreen(
                     ProcessingFamily.EFFECTS -> EffectsFamilyContent(state, viewModel)
                     ProcessingFamily.OCR -> OcrFamilyContent(state, viewModel)
                     ProcessingFamily.METADATA -> MetadataFamilyContent(state, viewModel)
+                    ProcessingFamily.PDF -> PdfFamilyContent(state, viewModel)
                     else -> {
                         Text(
                             "This processing family is ready for connection.",
@@ -367,6 +406,13 @@ private fun OcrFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
     state.ocrText?.let { text ->
         OutlinedTextField(value = text, onValueChange = {}, readOnly = true, label = { Text("Recognized text") }, modifier = Modifier.fillMaxWidth())
     }
+}
+@Composable
+private fun PdfFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Image to PDF", style = MaterialTheme.typography.headlineSmall)
+    Text("Create an offline PDF from the selected image.")
+    Button(onClick = viewModel::imageToPdf, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Create PDF") }
+    if (state.outputUri != null) Button(onClick = viewModel::savePdf, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Save PDF to Downloads") }
 }
 @Composable
 private fun MetadataFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
