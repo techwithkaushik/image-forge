@@ -191,159 +191,413 @@ public object ToolCatalog {
             .lowercase()
             .replace(Regex("[^a-z0-9]+"), "_")
             .trim('_')
+        val lower = normalized.lowercase()
+
+        if (normalized.isBlank()) {
+            return ToolDefinition(
+                id = ToolId("unknown"),
+                title = normalized,
+                family = ProcessingFamily.EDITING,
+                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.EDIT),
+                toolType = ToolType.IMAGE,
+                functionType = FunctionType.EDITING,
+            )
+        }
 
         return when {
-            normalized.contains("PDF", ignoreCase = true) -> ToolDefinition(
+            lower.contains("pdf") && lower.contains("to jpg") -> imageOrPdfDefinition(
+                key = key,
+                title = normalized,
+                family = ProcessingFamily.PDF,
+                functionType = FunctionType.PDF_TO_IMAGE,
+                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.PDF),
+                toolType = ToolType.PDF,
+                crop = CropConfiguration.disabled,
+                outputMimeType = "image/jpeg",
+            )
+
+            lower.contains("pdf") -> ToolDefinition(
                 id = ToolId(key),
                 title = normalized,
                 family = ProcessingFamily.PDF,
                 capabilities = setOf(ToolCapability.IMPORT, ToolCapability.PDF),
                 destination = ToolDestination.EDITOR,
+                preset = normalized,
+                toolType = ToolType.PDF,
+                functionType = FunctionType.IMAGE_TO_PDF,
+                configuration = ToolConfiguration(
+                    crop = CropConfiguration.disabled,
+                    targetKb = targetKbPreset(normalized),
+                    presetLabel = normalized,
+                ),
             )
 
-            normalized.contains("OCR", ignoreCase = true) ||
-                normalized.endsWith(" to Text", ignoreCase = true) -> ToolDefinition(
+            lower.contains("ocr") ||
+                lower.endsWith(" to text") -> ToolDefinition(
                 id = ToolId(key),
                 title = normalized,
                 family = ProcessingFamily.OCR,
                 capabilities = setOf(ToolCapability.IMPORT, ToolCapability.OCR),
                 destination = ToolDestination.EDITOR,
+                preset = normalized,
+                toolType = ToolType.DOCUMENT,
+                functionType = FunctionType.OCR,
+                configuration = ToolConfiguration(crop = CropConfiguration.disabled, presetLabel = normalized),
             )
 
-            normalized.contains("Passport", ignoreCase = true) ||
-                normalized.contains("PAN Card", ignoreCase = true) ||
-                normalized.contains("SSC Photo", ignoreCase = true) ||
-                normalized.contains("UPSC Photo", ignoreCase = true) ||
-                normalized.contains("PSC Photo", ignoreCase = true) ||
-                normalized.contains("35mm", ignoreCase = true) ||
-                normalized.contains("3.5cm", ignoreCase = true) ||
-                normalized.contains("2 x 2 Inch", ignoreCase = true) -> ToolDefinition(
+            lower.contains("text to handwriting") ||
+                lower.contains("image to word") -> ToolDefinition(
                 id = ToolId(key),
                 title = normalized,
+                family = ProcessingFamily.EDITING,
+                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.EDIT),
+                destination = ToolDestination.DOCUMENTS,
+                preset = normalized,
+                toolType = ToolType.DOCUMENT,
+                functionType = FunctionType.EDITING,
+                configuration = ToolConfiguration(crop = CropConfiguration.disabled, presetLabel = normalized),
+            )
+
+            lower.contains("passport photo maker") -> imageDefinition(
+                key = key,
+                title = normalized,
                 family = ProcessingFamily.PASSPORT_ID,
+                functionType = FunctionType.PASSPORT_PHOTO,
                 capabilities = setOf(
                     ToolCapability.IMPORT,
                     ToolCapability.RESIZE,
                     ToolCapability.CROP,
                     ToolCapability.PASSPORT,
                 ),
-                preset = normalized,
+                configuration = ToolConfiguration(
+                    crop = CropConfiguration.flexible,
+                    presetLabel = normalized,
+                ),
             )
 
-            normalized.contains("Signature", ignoreCase = true) ||
-                normalized.contains("Sign", ignoreCase = true) -> ToolDefinition(
-                id = ToolId(key),
+            lower.contains("passport") ||
+                lower.contains("pan card") ||
+                lower.contains("ssc photo") ||
+                lower.contains("upsc photo") ||
+                lower.contains("psc photo") ||
+                lower.contains("35mm") ||
+                lower.contains("3.5cm") ||
+                lower.contains("2 x 2 inch") -> imageDefinition(
+                key = key,
                 title = normalized,
-                family = ProcessingFamily.SIGNATURE,
+                family = ProcessingFamily.PASSPORT_ID,
+                functionType = FunctionType.FIXED_SIZE_CROP_RESIZE,
                 capabilities = setOf(
                     ToolCapability.IMPORT,
                     ToolCapability.RESIZE,
+                    ToolCapability.CROP,
+                    ToolCapability.PASSPORT,
+                ),
+                configuration = fixedSizeConfiguration(normalized),
+            )
+
+            lower.contains("signature") || lower.contains("sign") -> imageDefinition(
+                key = key,
+                title = normalized,
+                family = ProcessingFamily.SIGNATURE,
+                functionType = FunctionType.SIGNATURE,
+                capabilities = setOf(
+                    ToolCapability.IMPORT,
+                    ToolCapability.RESIZE,
+                    ToolCapability.CROP,
                     ToolCapability.SIGNATURE,
                 ),
-                preset = normalized,
+                configuration = signatureConfiguration(normalized),
             )
 
-            normalized.contains("Compress", ignoreCase = true) ||
-                normalized.contains("KB", ignoreCase = true) ||
-                normalized.contains("MB", ignoreCase = true) -> ToolDefinition(
-                id = ToolId(key),
+            lower.contains("compress") ||
+                Regex("""\b\d+(?:\.\d+)?\s*(?:kb|mb)\b""").containsMatchIn(lower) -> imageDefinition(
+                key = key,
                 title = normalized,
                 family = ProcessingFamily.COMPRESSION,
-                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.COMPRESS),
-                preset = normalized,
+                functionType = FunctionType.COMPRESSION,
+                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.CROP, ToolCapability.COMPRESS),
+                configuration = ToolConfiguration(
+                    crop = CropConfiguration.flexible,
+                    targetKb = targetKbPreset(normalized),
+                    presetLabel = normalized,
+                ),
             )
 
-            normalized.contains("Converter", ignoreCase = true) ||
-                normalized.contains(" to JPG", ignoreCase = true) ||
-                normalized.contains(" to JPEG", ignoreCase = true) ||
-                normalized.contains(" to PNG", ignoreCase = true) ||
-                normalized.contains(" to WEBP", ignoreCase = true) ||
-                normalized.contains(" to ICO", ignoreCase = true) ||
-                normalized.contains("Favicon", ignoreCase = true) -> ToolDefinition(
-                id = ToolId(key),
+            lower.contains("converter") ||
+                lower.contains(" to jpg") ||
+                lower.contains(" to jpeg") ||
+                lower.contains(" to png") ||
+                lower.contains(" to webp") ||
+                lower.contains(" to ico") ||
+                lower.contains("favicon") -> imageDefinition(
+                key = key,
                 title = normalized,
                 family = ProcessingFamily.CONVERSION,
-                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.CONVERT),
-                preset = normalized,
+                functionType = FunctionType.CONVERSION,
+                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.CROP, ToolCapability.CONVERT),
+                configuration = ToolConfiguration(
+                    crop = CropConfiguration.flexible,
+                    outputMimeType = conversionMime(normalized),
+                    presetLabel = normalized,
+                ),
             )
 
-            normalized.contains("AI", ignoreCase = true) ||
-                normalized.contains("Upscale", ignoreCase = true) -> ToolDefinition(
-                id = ToolId(key),
+            lower.contains("ai") || lower.contains("upscale") -> imageDefinition(
+                key = key,
                 title = normalized,
                 family = ProcessingFamily.AI,
-                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.AI),
-                preset = normalized,
+                functionType = FunctionType.AI,
+                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.CROP, ToolCapability.AI),
+                configuration = ToolConfiguration(crop = CropConfiguration.flexible, presetLabel = normalized),
             )
 
-            normalized.contains("DPI", ignoreCase = true) ||
-                normalized.contains("Quality", ignoreCase = true) ||
-                normalized.contains("Super Resolution", ignoreCase = true) -> ToolDefinition(
-                id = ToolId(key),
+            lower.contains("dpi") ||
+                lower.contains("quality") ||
+                lower.contains("super resolution") -> imageDefinition(
+                key = key,
                 title = normalized,
                 family = ProcessingFamily.DPI_QUALITY,
-                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.DPI),
-                preset = normalized,
+                functionType = FunctionType.DPI_QUALITY,
+                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.CROP, ToolCapability.DPI),
+                configuration = ToolConfiguration(crop = CropConfiguration.flexible, presetLabel = normalized),
             )
 
-            normalized.contains("Crop", ignoreCase = true) -> ToolDefinition(
-                id = ToolId(key),
+            lower.contains("crop") -> imageDefinition(
+                key = key,
                 title = normalized,
                 family = ProcessingFamily.CROP,
+                functionType = FunctionType.CROP,
                 capabilities = setOf(ToolCapability.IMPORT, ToolCapability.CROP),
-                preset = normalized,
+                configuration = ToolConfiguration(crop = CropConfiguration.flexible, presetLabel = normalized),
             )
 
-            normalized.contains("Rotate", ignoreCase = true) ||
-                normalized.contains("Flip", ignoreCase = true) -> ToolDefinition(
-                id = ToolId(key),
+            lower.contains("rotate") || lower.contains("flip") -> imageDefinition(
+                key = key,
                 title = normalized,
                 family = ProcessingFamily.TRANSFORM,
-                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.TRANSFORM),
-                preset = normalized,
+                functionType = FunctionType.TRANSFORM,
+                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.CROP, ToolCapability.TRANSFORM),
+                configuration = ToolConfiguration(crop = CropConfiguration.flexible, presetLabel = normalized),
             )
 
-            normalized.contains("Blur", ignoreCase = true) ||
-                normalized.contains("Pixelate", ignoreCase = true) ||
-                normalized.contains("Censor", ignoreCase = true) ||
-                normalized.contains("Grayscale", ignoreCase = true) ||
-                normalized.contains("Black & White", ignoreCase = true) ||
-                normalized.contains("Retouch", ignoreCase = true) ||
-                normalized.contains("Beautify", ignoreCase = true) -> ToolDefinition(
-                id = ToolId(key),
+            lower.contains("blur") ||
+                lower.contains("pixelate") ||
+                lower.contains("censor") ||
+                lower.contains("grayscale") ||
+                lower.contains("black & white") ||
+                lower.contains("retouch") ||
+                lower.contains("beautify") -> imageDefinition(
+                key = key,
                 title = normalized,
                 family = ProcessingFamily.EFFECTS,
-                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.EFFECT),
-                preset = normalized,
+                functionType = FunctionType.EFFECT,
+                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.CROP, ToolCapability.EFFECT),
+                configuration = ToolConfiguration(crop = CropConfiguration.flexible, presetLabel = normalized),
             )
 
-            normalized.contains("Metadata", ignoreCase = true) -> ToolDefinition(
-                id = ToolId(key),
+            lower.contains("metadata") -> imageDefinition(
+                key = key,
                 title = normalized,
                 family = ProcessingFamily.METADATA,
-                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.METADATA),
-                preset = normalized,
+                functionType = FunctionType.METADATA,
+                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.CROP, ToolCapability.METADATA),
+                configuration = ToolConfiguration(crop = CropConfiguration.flexible, presetLabel = normalized),
             )
 
-            normalized.contains("Resize", ignoreCase = true) ||
-                normalized.contains("Size", ignoreCase = true) ||
-                normalized.contains("Instagram", ignoreCase = true) ||
-                normalized.contains("WhatsApp", ignoreCase = true) ||
-                normalized.contains("YouTube", ignoreCase = true) -> ToolDefinition(
-                id = ToolId(key),
+            lower.contains("resize") ||
+                lower.contains("size") ||
+                lower.contains("instagram") ||
+                lower.contains("whatsapp") ||
+                lower.contains("youtube") ||
+                lower.contains("a4") -> imageDefinition(
+                key = key,
                 title = normalized,
                 family = ProcessingFamily.RESIZE,
-                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.RESIZE),
-                preset = normalized,
+                functionType = FunctionType.CROP_RESIZE,
+                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.RESIZE, ToolCapability.CROP),
+                configuration = resizeConfiguration(normalized),
             )
 
-            else -> ToolDefinition(
-                id = ToolId(key),
+            else -> imageDefinition(
+                key = key,
                 title = normalized,
                 family = ProcessingFamily.EDITING,
-                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.EDIT),
-                preset = normalized,
+                functionType = FunctionType.EDITING,
+                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.CROP, ToolCapability.EDIT),
+                configuration = ToolConfiguration(crop = CropConfiguration.flexible, presetLabel = normalized),
             )
         }
     }
+
+    private fun imageDefinition(
+        key: String,
+        title: String,
+        family: ProcessingFamily,
+        functionType: FunctionType,
+        capabilities: Set<ToolCapability>,
+        configuration: ToolConfiguration,
+    ): ToolDefinition = ToolDefinition(
+        id = ToolId(key),
+        title = title,
+        family = family,
+        capabilities = capabilities,
+        destination = ToolDestination.EDITOR,
+        preset = title,
+        toolType = ToolType.IMAGE,
+        functionType = functionType,
+        configuration = configuration,
+    )
+
+    private fun imageOrPdfDefinition(
+        key: String,
+        title: String,
+        family: ProcessingFamily,
+        functionType: FunctionType,
+        capabilities: Set<ToolCapability>,
+        toolType: ToolType,
+        crop: CropConfiguration,
+        outputMimeType: String?,
+    ): ToolDefinition = ToolDefinition(
+        id = ToolId(key),
+        title = title,
+        family = family,
+        capabilities = capabilities,
+        destination = ToolDestination.EDITOR,
+        preset = title,
+        toolType = toolType,
+        functionType = functionType,
+        configuration = ToolConfiguration(
+            crop = crop,
+            outputMimeType = outputMimeType,
+            presetLabel = title,
+        ),
+    )
+
+    private fun resizeConfiguration(title: String): ToolConfiguration {
+        val lower = title.lowercase()
+        if ("instagram (no crop)" in lower) {
+            return ToolConfiguration(
+                crop = CropConfiguration.disabled,
+                outputWidth = 1080.0,
+                outputHeight = 1080.0,
+                presetLabel = title,
+            )
+        }
+        val dimensions = fixedDimensions(title)
+        return if (dimensions != null) {
+            ToolConfiguration(
+                crop = CropConfiguration.fixed(
+                    width = dimensions.first,
+                    height = dimensions.second,
+                    unit = dimensions.third,
+                    aspectRatio = aspectRatio(dimensions.first, dimensions.second),
+                ),
+                outputWidth = dimensions.first,
+                outputHeight = dimensions.second,
+                outputUnit = dimensions.third,
+                outputDpi = dpiPreset(title),
+                presetLabel = title,
+            )
+        } else {
+            ToolConfiguration(crop = CropConfiguration.flexible, presetLabel = title)
+        }
+    }
+
+    private fun fixedSizeConfiguration(title: String): ToolConfiguration {
+        val dimensions = fixedDimensions(title) ?: return ToolConfiguration(
+            crop = CropConfiguration.flexible,
+            presetLabel = title,
+        )
+        return ToolConfiguration(
+            crop = CropConfiguration.fixed(
+                width = dimensions.first,
+                height = dimensions.second,
+                unit = dimensions.third,
+                aspectRatio = aspectRatio(dimensions.first, dimensions.second),
+            ),
+            outputWidth = dimensions.first,
+            outputHeight = dimensions.second,
+            outputUnit = dimensions.third,
+            outputDpi = dpiPreset(title) ?: 300,
+            presetLabel = title,
+        )
+    }
+
+    private fun signatureConfiguration(title: String): ToolConfiguration {
+        val dimensions = fixedDimensions(title)
+        return ToolConfiguration(
+            crop = if (dimensions != null) {
+                CropConfiguration.fixed(
+                    dimensions.first,
+                    dimensions.second,
+                    dimensions.third,
+                    aspectRatio(dimensions.first, dimensions.second),
+                )
+            } else {
+                CropConfiguration.flexible
+            },
+            outputWidth = dimensions?.first,
+            outputHeight = dimensions?.second,
+            outputUnit = dimensions?.third ?: DimensionUnit.PIXEL,
+            outputDpi = dpiPreset(title),
+            presetLabel = title,
+        )
+    }
+
+    private fun fixedDimensions(title: String): Triple<Double, Double, DimensionUnit>? {
+        val lower = title.lowercase()
+        return when {
+            "35mm x 45mm" in lower || "3.5cm x 4.5cm" in lower ->
+                Triple(35.0, 45.0, DimensionUnit.MM)
+            "signature 50mm x 20mm" in lower ->
+                Triple(50.0, 20.0, DimensionUnit.MM)
+            "6cm x 2cm" in lower ->
+                Triple(6.0, 2.0, DimensionUnit.CM)
+            "2 x 2 inch" in lower ->
+                Triple(2.0, 2.0, DimensionUnit.INCH)
+            "3 x 4 inch" in lower ->
+                Triple(3.0, 4.0, DimensionUnit.INCH)
+            "4 x 6 inch" in lower ->
+                Triple(4.0, 6.0, DimensionUnit.INCH)
+            "600x600" in lower ->
+                Triple(600.0, 600.0, DimensionUnit.PIXEL)
+            "a4" in lower ->
+                Triple(210.0, 297.0, DimensionUnit.MM)
+            else -> null
+        }
+    }
+
+    private fun dpiPreset(title: String): Int? {
+        val match = Regex("""(\d+)\s*dpi""").find(title.lowercase())
+        return match?.groupValues?.get(1)?.toIntOrNull()
+    }
+
+    private fun targetKbPreset(title: String): Long? {
+        val match = Regex("""(\d+(?:\.\d+)?)\s*(kb|mb)""")
+            .find(title.lowercase()) ?: return null
+        val value = match.groupValues[1].toDouble()
+        return if (match.groupValues[2] == "mb") (value * 1024.0).toLong() else value.toLong()
+    }
+
+    private fun conversionMime(title: String): String? = when {
+        title.contains("PNG", ignoreCase = true) -> "image/png"
+        title.contains("WEBP", ignoreCase = true) -> "image/webp"
+        title.contains("JPG", ignoreCase = true) ||
+            title.contains("JPEG", ignoreCase = true) ||
+            title.contains("JFIF", ignoreCase = true) -> "image/jpeg"
+        else -> null
+    }
+
+    private fun aspectRatio(width: Double, height: Double): Pair<Int, Int>? {
+        if (width <= 0 || height <= 0) return null
+        val scale = 1000.0
+        val w = kotlin.math.round(width / kotlin.math.min(width, height) * scale).toInt()
+        val h = kotlin.math.round(height / kotlin.math.min(width, height) * scale).toInt()
+        val gcd = gcd(w, h)
+        return (w / gcd) to (h / gcd)
+    }
+
+    private fun gcd(a: Int, b: Int): Int =
+        if (b == 0) kotlin.math.abs(a) else gcd(b, a % b)
 }
