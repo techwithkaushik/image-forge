@@ -192,8 +192,8 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
         viewModelScope.launch(Dispatchers.IO) {
             _state.value = current.copy(busy = true, message = null, outputUri = null)
             try {
-                val bitmap = resolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it) }
-                    ?: throw IllegalArgumentException("Unable to decode image for PDF.")
+                val bitmap = decodePdfBitmap(uri)
+                    ?: throw IllegalArgumentException("Unable to decode image for PDF within the memory budget.")
                 val document = PdfDocument()
                 val pageInfo = PdfDocument.PageInfo.Builder(bitmap.width, bitmap.height, 1).create()
                 val page = document.startPage(pageInfo)
@@ -207,6 +207,24 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
             } catch (t: Throwable) {
                 _state.value = _state.value.copy(busy = false, message = "PDF failed: ${t.message ?: "Unable to create PDF."}")
             }
+        }
+    }
+
+    private fun decodePdfBitmap(uri: Uri): android.graphics.Bitmap? {
+        val bounds = resolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.Options().also {
+                it.inJustDecodeBounds = true
+                BitmapFactory.decodeStream(input, null, it)
+            }
+        } ?: return null
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while ((bounds.outWidth.toLong() / sample) * (bounds.outHeight.toLong() / sample) > 8_000_000L) sample *= 2
+        return resolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.Options().apply {
+                inSampleSize = sample
+                inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+            }.let { options -> BitmapFactory.decodeStream(input, null, options) }
         }
     }
 
