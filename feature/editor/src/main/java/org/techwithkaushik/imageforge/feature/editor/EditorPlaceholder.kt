@@ -96,8 +96,8 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
                 }
                 if (bounds != null && bounds.outWidth > 0 && bounds.outHeight > 0) {
                     _state.value = _state.value.copy(
-                        width = bounds.outWidth.toString(),
-                        height = bounds.outHeight.toString(),
+                        width = _state.value.width.ifBlank { bounds.outWidth.toString() },
+                        height = _state.value.height.ifBlank { bounds.outHeight.toString() },
                         originalWidth = bounds.outWidth,
                         originalHeight = bounds.outHeight,
                     )
