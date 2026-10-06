@@ -204,6 +204,22 @@ public object ToolCatalog {
             )
         }
 
+        if (lower == "instagram (no crop)") {
+            return imageDefinition(
+                key = key,
+                title = normalized,
+                family = ProcessingFamily.RESIZE,
+                functionType = FunctionType.CROP_RESIZE,
+                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.RESIZE),
+                configuration = ToolConfiguration(
+                    crop = CropConfiguration.disabled,
+                    outputWidth = 1080.0,
+                    outputHeight = 1080.0,
+                    presetLabel = normalized,
+                ),
+            )
+        }
+
         return when {
             lower.contains("pdf") && lower.contains("to jpg") -> imageOrPdfDefinition(
                 key = key,
