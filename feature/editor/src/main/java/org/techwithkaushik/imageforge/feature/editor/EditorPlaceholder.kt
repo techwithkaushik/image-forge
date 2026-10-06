@@ -263,6 +263,13 @@ public fun EditorScreen(
             } else {
                 when (state.tool?.family) {
                     ProcessingFamily.RESIZE -> ResizeFamilyContent(state, viewModel)
+                    ProcessingFamily.COMPRESSION -> CompressionFamilyContent(state, viewModel)
+                    ProcessingFamily.CONVERSION -> ConversionFamilyContent(state, viewModel)
+                    ProcessingFamily.TRANSFORM -> TransformFamilyContent(state, viewModel)
+                    ProcessingFamily.CROP -> CropFamilyContent(state, viewModel)
+                    ProcessingFamily.PASSPORT_ID -> PassportFamilyContent(state, viewModel)
+                    ProcessingFamily.SIGNATURE -> SignatureFamilyContent(viewModel)
+                    ProcessingFamily.EFFECTS -> EffectsFamilyContent(state, viewModel)
                     else -> {
                         Text(
                             "This processing family is ready for connection.",
@@ -285,6 +292,68 @@ public fun EditorScreen(
     }
 }
 
+@Composable
+private fun CompressionFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Compression", style = MaterialTheme.typography.headlineSmall)
+    OutlinedTextField(value = state.targetKb, onValueChange = viewModel::updateTargetKb, label = { Text("Target size (KB)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+    Button(onClick = viewModel::compress, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Compress Image") }
+}
+
+@Composable
+private fun ConversionFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Conversion", style = MaterialTheme.typography.headlineSmall)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = { viewModel.convert("image/jpeg") }, modifier = Modifier.weight(1f)) { Text("JPG") }
+        Button(onClick = { viewModel.convert("image/png") }, modifier = Modifier.weight(1f)) { Text("PNG") }
+        Button(onClick = { viewModel.convert("image/webp") }, modifier = Modifier.weight(1f)) { Text("WEBP") }
+    }
+}
+
+@Composable
+private fun TransformFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Transform", style = MaterialTheme.typography.headlineSmall)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = { viewModel.setRotateDegrees(90); viewModel.rotate() }, modifier = Modifier.weight(1f)) { Text("Rotate 90°") }
+        Button(onClick = { viewModel.setRotateDegrees(180); viewModel.rotate() }, modifier = Modifier.weight(1f)) { Text("Rotate 180°") }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = { viewModel.setFlipHorizontal(true); viewModel.setFlipVertical(false); viewModel.flip() }, modifier = Modifier.weight(1f)) { Text("Flip H") }
+        Button(onClick = { viewModel.setFlipHorizontal(false); viewModel.setFlipVertical(true); viewModel.flip() }, modifier = Modifier.weight(1f)) { Text("Flip V") }
+    }
+}
+
+@Composable
+private fun CropFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Crop", style = MaterialTheme.typography.headlineSmall)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(value = state.width, onValueChange = viewModel::updateWidth, label = { Text("Crop width") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+        OutlinedTextField(value = state.height, onValueChange = viewModel::updateHeight, label = { Text("Crop height") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+    }
+    Button(onClick = viewModel::cropCenter, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Crop Center") }
+}
+
+@Composable
+private fun PassportFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Passport / ID Photo", style = MaterialTheme.typography.headlineSmall)
+    Text("Default preset: 35 × 45 mm at 300 DPI (413 × 531 px)")
+    Button(onClick = viewModel::passport, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Create Passport Photo") }
+}
+
+@Composable
+private fun SignatureFamilyContent(viewModel: EditorViewModel) {
+    Text("Signature", style = MaterialTheme.typography.headlineSmall)
+    Text("Detect dark ink, crop to the ink bounds and clean border noise.")
+    Button(onClick = viewModel::signature, enabled = true, modifier = Modifier.fillMaxWidth()) { Text("Extract Signature") }
+}
+
+@Composable
+private fun EffectsFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Effects", style = MaterialTheme.typography.headlineSmall)
+    OutlinedTextField(value = state.brightness.toString(), onValueChange = { it.toFloatOrNull()?.let(viewModel::setBrightness) }, label = { Text("Brightness (-1 to 1)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = state.contrast.toString(), onValueChange = { it.toFloatOrNull()?.let(viewModel::setContrast) }, label = { Text("Contrast (0 to 2)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = state.saturation.toString(), onValueChange = { it.toFloatOrNull()?.let(viewModel::setSaturation) }, label = { Text("Saturation (0 to 2)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+    Button(onClick = viewModel::adjustColors, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Apply Effect") }
+}
 @Composable
 private fun ResizeFamilyContent(
     state: EditorUiState,
