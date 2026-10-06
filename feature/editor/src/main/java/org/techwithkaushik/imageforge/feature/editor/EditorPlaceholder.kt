@@ -133,7 +133,7 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
     }
 
     private fun targetKbPreset(title: String?): Long? =
-        Regex("""(\\d+)\\s*(kb|mb)""").find(title?.lowercase().orEmpty())?.let { match ->
+        Regex("""(\d+)\s*(kb|mb)""").find(title?.lowercase().orEmpty())?.let { match ->
             val value = match.groupValues[1].toLong()
             if (match.groupValues[2] == "mb") value * 1024L else value
         }
