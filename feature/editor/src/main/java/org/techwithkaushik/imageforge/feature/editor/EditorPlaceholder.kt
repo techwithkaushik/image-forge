@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
@@ -38,7 +39,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.techwithkaushik.imageforge.common.ForgeResult
 import org.techwithkaushik.imageforge.common.ProcessingFamily
-import org.techwithkaushik.imageforge.common.ToolCatalog
+import org.techwithkaushik.imageforge.common.ToolDefinition
 import org.techwithkaushik.imageforge.imageprocessor.AndroidImageRepository
 import org.techwithkaushik.imageforge.imageprocessor.ImageInput
 import org.techwithkaushik.imageforge.imageprocessor.ImageOperation
@@ -48,8 +49,7 @@ import org.techwithkaushik.imageforge.storage.AndroidStorageGateway
 import org.techwithkaushik.imageforge.storage.StorageDestination
 
 internal data class EditorUiState(
-    val tool: String? = null,
-    val family: ProcessingFamily? = null,
+    val tool: ToolDefinition? = null,
     val sourceUri: Uri? = null,
     val width: String = "",
     val height: String = "",
@@ -69,14 +69,9 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
     private val _state = MutableStateFlow(EditorUiState())
     val state: StateFlow<EditorUiState> = _state.asStateFlow()
 
-    fun initialize(uri: Uri?, toolId: String?, toolTitle: String?) {
-        val definition = toolTitle?.let(ToolCatalog::definition)
-        if (_state.value.sourceUri == uri && _state.value.tool == toolTitle) return
-        _state.value = EditorUiState(
-            tool = definition?.title ?: toolTitle ?: toolId,
-            family = definition?.family,
-            sourceUri = uri,
-        )
+    fun initialize(uri: Uri?, tool: ToolDefinition?) {
+        if (_state.value.sourceUri == uri && _state.value.tool == tool) return
+        _state.value = EditorUiState(tool = tool, sourceUri = uri)
         if (uri != null) {
             viewModelScope.launch(Dispatchers.IO) {
                 val bounds = resolver.openInputStream(uri)?.use { input ->
@@ -202,20 +197,21 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
 @Composable
 public fun EditorScreen(
     imageUri: String? = null,
-    toolId: String? = null,
-    toolTitle: String? = null,
+    tool: ToolDefinition? = null,
     onBack: () -> Unit = {},
     onImport: () -> Unit = {},
 ) {
     val viewModel: EditorViewModel = viewModel()
     val state by viewModel.state.collectAsState()
+
     LaunchedEffect(imageUri, tool) {
-        viewModel.initialize(imageUri?.let(Uri::parse), toolId, toolTitle)
+        viewModel.initialize(imageUri?.let(Uri::parse), tool)
     }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(toolTitle ?: "Editor") },
+                title = { Text(tool?.title ?: "Editor") },
                 navigationIcon = {
                     androidx.compose.material3.TextButton(onClick = onBack) { Text("Back") }
                 },
@@ -235,59 +231,20 @@ public fun EditorScreen(
                 Button(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
                     Text("Import Image")
                 }
-            } else if (state.family == ProcessingFamily.RESIZE) {
-                Text(state.tool ?: "Resize Image", style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    "Original: ${state.originalWidth} × ${state.originalHeight} px",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    OutlinedTextField(
-                        value = state.width,
-                        onValueChange = viewModel::updateWidth,
-                        label = { Text("Width (px)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                    )
-                    OutlinedTextField(
-                        value = state.height,
-                        onValueChange = viewModel::updateHeight,
-                        label = { Text("Height (px)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = state.keepAspectRatio,
-                        onCheckedChange = viewModel::setKeepAspectRatio,
-                    )
-                    Text("Keep aspect ratio")
-                }
-                Button(
-                    onClick = viewModel::resize,
-                    enabled = !state.busy,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (state.busy) CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp), strokeWidth = 2.dp)
-                    Text(if (state.busy) "Resizing…" else "Resize Image")
-                }
-                if (state.outputUri != null) {
-                    Button(
-                        onClick = viewModel::save,
-                        enabled = !state.busy,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text("Save to Pictures")
+            } else {
+                when (state.tool?.family) {
+                    ProcessingFamily.RESIZE -> ResizeFamilyContent(state, viewModel)
+                    else -> {
+                        Text(
+                            "This processing family is ready for connection.",
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                        Text("Family: ${state.tool?.family?.name ?: "UNKNOWN"}")
+                        Text("Tool: ${state.tool?.title ?: "Image Editor"}")
                     }
                 }
-            } else {
-                Text("This tool is being connected one-by-one.", style = MaterialTheme.typography.titleLarge)
-                Text("Selected tool: ${tool ?: "Image Editor"}")
             }
+
             state.progress?.let {
                 Text("${it.completedSteps}/${it.totalSteps} — ${it.message ?: "Processing"}")
                 if (state.busy) CircularProgressIndicator()
@@ -295,6 +252,69 @@ public fun EditorScreen(
             state.message?.let {
                 Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+    }
+}
+
+@Composable
+private fun ResizeFamilyContent(
+    state: EditorUiState,
+    viewModel: EditorViewModel,
+) {
+    Text(
+        state.tool?.title ?: "Resize Image",
+        style = MaterialTheme.typography.headlineSmall,
+    )
+    Text(
+        "Original: ${state.originalWidth} × ${state.originalHeight} px",
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        OutlinedTextField(
+            value = state.width,
+            onValueChange = viewModel::updateWidth,
+            label = { Text("Width (px)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedTextField(
+            value = state.height,
+            onValueChange = viewModel::updateHeight,
+            label = { Text("Height (px)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1f),
+        )
+    }
+    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Checkbox(
+            checked = state.keepAspectRatio,
+            onCheckedChange = viewModel::setKeepAspectRatio,
+        )
+        Text("Keep aspect ratio")
+    }
+    Button(
+        onClick = viewModel::resize,
+        enabled = !state.busy,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        if (state.busy) {
+            CircularProgressIndicator(
+                modifier = Modifier.padding(end = 8.dp),
+                strokeWidth = 2.dp,
+            )
+        }
+        Text(if (state.busy) "Resizing…" else "Resize Image")
+    }
+    if (state.outputUri != null) {
+        Button(
+            onClick = viewModel::save,
+            enabled = !state.busy,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Save to Pictures")
         }
     }
 }
