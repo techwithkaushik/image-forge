@@ -162,7 +162,15 @@ private fun CropFrame(ratio: Pair<Int, Int>, modifier: Modifier) {
     }
 }
 
-private fun calculateSelection(viewport: IntSize, image: Bitmap, zoom: Float, pan: Offset, ratio: Pair<Int, Int>): CropSelection {
+private fun calculateSelection(
+    viewport: IntSize,
+    image: Bitmap,
+    zoom: Float,
+    pan: Offset,
+    ratio: Pair<Int, Int>,
+    originalWidth: Int,
+    originalHeight: Int,
+): CropSelection {
     val vw = viewport.width.toFloat()
     val vh = viewport.height.toFloat()
     val scale = minOf(vw / image.width, vh / image.height)
