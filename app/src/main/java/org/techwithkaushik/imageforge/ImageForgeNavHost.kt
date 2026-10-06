@@ -56,6 +56,7 @@ internal fun ImageForgeNavHost(
         }
         composable<EditorRoute> { entry ->
             val route = entry.toRoute<EditorRoute>()
+            pendingTool = route.tool
             EditorScreen(
                 imageUri = route.imageUri,
                 tool = route.tool,
