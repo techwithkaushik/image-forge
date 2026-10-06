@@ -93,8 +93,7 @@ public object ToolCatalog {
             )
 
             normalized.contains("OCR", ignoreCase = true) ||
-                normalized.endsWith(" to Text", ignoreCase = true) ||
-                normalized.contains("Text to Handwriting", ignoreCase = true) -> ToolDefinition(
+                normalized.endsWith(" to Text", ignoreCase = true) -> ToolDefinition(
                 id = ToolId(key),
                 title = normalized,
                 family = ProcessingFamily.OCR,
