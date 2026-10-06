@@ -77,7 +77,15 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
 
     fun initialize(uri: Uri?, tool: ToolDefinition?) {
         if (_state.value.sourceUri == uri && _state.value.tool == tool) return
-        _state.value = EditorUiState(tool = tool, sourceUri = uri)
+        val preset = resizePreset(tool?.title)
+        val targetKb = targetKbPreset(tool?.title)
+        _state.value = EditorUiState(
+            tool = tool,
+            sourceUri = uri,
+            width = preset?.first?.toString() ?: "",
+            height = preset?.second?.toString() ?: "",
+            targetKb = targetKb?.toString() ?: "100",
+        )
         if (uri != null) {
             viewModelScope.launch(Dispatchers.IO) {
                 val bounds = resolver.openInputStream(uri)?.use { input ->
@@ -98,6 +106,29 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
+    private fun resizePreset(title: String?): Pair<Int, Int>? {
+        val value = title?.lowercase() ?: return null
+        return when {
+            "a4" in value -> 2480 to 3508
+            "instagram grid" in value -> 1080 to 1080
+            "instagram" in value -> 1080 to 1080
+            "whatsapp dp" in value -> 500 to 500
+            "youtube banner" in value -> 2560 to 1440
+            "600x600" in value || "2 x 2 inch" in value -> 600 to 600
+            "3 x 4 inch" in value -> 900 to 1200
+            "4 x 6 inch" in value -> 1200 to 1800
+            "35mm x 45mm" in value || "3.5cm x 4.5cm" in value || "35mm" in value -> 413 to 531
+            "signature 50mm x 20mm" in value -> 591 to 236
+            "6cm x 2cm" in value -> 709 to 236
+            else -> null
+        }
+    }
+
+    private fun targetKbPreset(title: String?): Long? =
+        Regex("""(\\d+)\\s*(kb|mb)""").find(title?.lowercase().orEmpty())?.let { match ->
+            val value = match.groupValues[1].toLong()
+            if (match.groupValues[2] == "mb") value * 1024L else value
+        }
     fun updateWidth(value: String) {
         if (value.all(Char::isDigit) && value.length <= 5) {
             val current = _state.value
