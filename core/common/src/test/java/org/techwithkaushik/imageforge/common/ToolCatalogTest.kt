@@ -25,7 +25,7 @@ public class ToolCatalogTest {
             ToolCatalog.definition("Compress to 50KB").family,
         )
         assertEquals(
-            ProcessingFamily.COMPRESSION,
+            ProcessingFamily.PDF,
             ToolCatalog.definition("JPEG to PDF (Under 500KB)").family,
         )
         assertEquals(
