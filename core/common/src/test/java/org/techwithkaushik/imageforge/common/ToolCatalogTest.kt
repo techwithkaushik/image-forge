@@ -39,8 +39,8 @@ public class ToolCatalogTest {
         val pdf = ToolCatalog.definition("Image to PDF")
         val ocr = ToolCatalog.definition("Image to Text (OCR)")
 
-        assertEquals(ToolDestination.DOCUMENTS, pdf.destination)
-        assertEquals(ToolDestination.DOCUMENTS, ocr.destination)
+        assertEquals(ToolDestination.EDITOR, pdf.destination)
+        assertEquals(ToolDestination.EDITOR, ocr.destination)
         assertTrue(ToolCapability.PDF in pdf.capabilities)
         assertTrue(ToolCapability.OCR in ocr.capabilities)
     }
