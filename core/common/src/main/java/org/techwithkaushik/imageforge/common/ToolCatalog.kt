@@ -89,7 +89,7 @@ public object ToolCatalog {
                 title = normalized,
                 family = ProcessingFamily.PDF,
                 capabilities = setOf(ToolCapability.IMPORT, ToolCapability.PDF),
-                destination = ToolDestination.DOCUMENTS,
+                destination = ToolDestination.EDITOR,
             )
 
             normalized.contains("OCR", ignoreCase = true) ||
