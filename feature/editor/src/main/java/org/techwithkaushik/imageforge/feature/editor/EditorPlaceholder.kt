@@ -52,6 +52,13 @@ internal data class EditorUiState(
     val sourceUri: Uri? = null,
     val width: String = "",
     val height: String = "",
+    val targetKb: String = "100",
+    val rotateDegrees: Int = 90,
+    val flipHorizontal: Boolean = false,
+    val flipVertical: Boolean = false,
+    val brightness: Float = 0f,
+    val contrast: Float = 1f,
+    val saturation: Float = 1f,
     val keepAspectRatio: Boolean = true,
     val originalWidth: Int = 0,
     val originalHeight: Int = 0,
@@ -135,40 +142,63 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
-    fun resize() {
+    fun updateTargetKb(value: String) {
+        if (value.all(Char::isDigit) && value.length <= 7) _state.value = _state.value.copy(targetKb = value)
+    }
+    fun rotate() = process(ImageOperation.Rotate(_state.value.rotateDegrees), "Rotate complete.")
+    fun setRotateDegrees(value: Int) { _state.value = _state.value.copy(rotateDegrees = value) }
+    fun setFlipHorizontal(value: Boolean) { _state.value = _state.value.copy(flipHorizontal = value) }
+    fun setFlipVertical(value: Boolean) { _state.value = _state.value.copy(flipVertical = value) }
+    fun flip() {
         val current = _state.value
-        val uri = current.sourceUri ?: return message("Import an image first.")
+        if (!current.flipHorizontal && !current.flipVertical) return message("Select horizontal or vertical flip.")
+        process(ImageOperation.Flip(current.flipHorizontal, current.flipVertical), "Flip complete.")
+    }
+    fun convert(mimeType: String) = process(ImageOperation.Convert(mimeType), "Conversion complete.")
+    fun compress() {
+        val kb = _state.value.targetKb.toLongOrNull() ?: return message("Enter a valid target size.")
+        if (kb <= 0) return message("Target size must be greater than zero.")
+        process(ImageOperation.Compress(kb * 1024L), "Compression complete.")
+    }
+    fun cropCenter() {
+        val current = _state.value
         val width = current.width.toIntOrNull()
         val height = current.height.toIntOrNull()
-        if (width == null || height == null || width <= 0 || height <= 0) {
-            return message("Enter valid width and height.")
-        }
+        if (width == null || height == null || width <= 0 || height <= 0) return message("Enter valid crop width and height.")
+        val left = ((current.originalWidth - width) / 2).coerceAtLeast(0)
+        val top = ((current.originalHeight - height) / 2).coerceAtLeast(0)
+        if (left + width > current.originalWidth || top + height > current.originalHeight) return message("Crop size exceeds the original image.")
+        process(ImageOperation.Crop(left, top, width, height), "Crop complete.")
+    }
+    fun passport() = process(ImageOperation.PassportPhoto(), "Passport photo created.")
+    fun signature() = process(ImageOperation.ExtractSignature(), "Signature extracted.")
+    fun adjustColors() = process(ImageOperation.ColorAdjust(_state.value.brightness, _state.value.contrast, _state.value.saturation), "Image adjustment complete.")
+    fun setBrightness(value: Float) { _state.value = _state.value.copy(brightness = value) }
+    fun setContrast(value: Float) { _state.value = _state.value.copy(contrast = value) }
+    fun setSaturation(value: Float) { _state.value = _state.value.copy(saturation = value) }
+    fun resize() {
+        val current = _state.value
+        val width = current.width.toIntOrNull()
+        val height = current.height.toIntOrNull()
+        if (width == null || height == null || width <= 0 || height <= 0) return message("Enter valid width and height.")
+        process(ImageOperation.Resize(width, height), "Resize complete.")
+    }
+    private fun process(operation: ImageOperation, successMessage: String) {
+        val current = _state.value
+        val uri = current.sourceUri ?: return message("Import an image first.")
         viewModelScope.launch {
             _state.value = current.copy(busy = true, message = null, outputUri = null)
             val mime = resolver.getType(uri) ?: "image/jpeg"
-            when (val result = processor(
-                ImageProcessingRequest(
-                    input = ImageInput(uri = uri, mimeType = mime),
-                    operation = ImageOperation.Resize(width, height),
-                ),
-            ) { progress ->
+            when (val result = processor(ImageProcessingRequest(ImageInput(uri, mime), operation)) { progress ->
                 _state.value = _state.value.copy(progress = progress)
             }) {
-                is ForgeResult.Success -> _state.value = _state.value.copy(
-                    busy = false,
-                    outputUri = result.value.uri,
-                    message = "Resize complete.",
-                )
-                is ForgeResult.Failure -> _state.value = _state.value.copy(
-                    busy = false,
-                    message = "Resize failed: ${result.error}",
-                )
+                is ForgeResult.Success -> _state.value = _state.value.copy(busy = false, outputUri = result.value.uri, message = successMessage)
+                is ForgeResult.Failure -> _state.value = _state.value.copy(busy = false, message = "Processing failed: ${result.error}")
             }
         }
     }
-
     fun save() {
-        val output = _state.value.outputUri ?: return message("Resize an image before saving.")
+        val output = _state.value.outputUri ?: return message("Process an image before saving.")
         viewModelScope.launch {
             _state.value = _state.value.copy(busy = true)
             val result = storage.saveImage(
