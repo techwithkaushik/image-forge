@@ -145,7 +145,7 @@ internal fun CropEditorDialog(
         confirmButton = {
             Button(enabled = image != null && viewport.width > 0, onClick = {
                 val selectedImage = image ?: return@Button
-                onConfirm(calculateSelection(viewport, selectedImage, zoom, pan, ratio))
+                onConfirm(calculateSelection(viewport, selectedImage, zoom, pan, ratio, originalWidth, originalHeight))
             }) { Text("Crop & Apply") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
