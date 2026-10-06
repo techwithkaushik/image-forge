@@ -66,7 +66,23 @@ internal fun CropEditorDialog(
     }
     LaunchedEffect(imageUri) {
         bitmap = withContext(Dispatchers.IO) {
-            resolver.openInputStream(imageUri)?.use { BitmapFactory.decodeStream(it) }
+            val bounds = resolver.openInputStream(imageUri)?.use { input ->
+                BitmapFactory.Options().also {
+                    it.inJustDecodeBounds = true
+                    BitmapFactory.decodeStream(input, null, it)
+                }
+            }
+            if (bounds == null || bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                null
+            } else {
+                val sample = calculatePreviewSample(bounds.outWidth, bounds.outHeight)
+                resolver.openInputStream(imageUri)?.use { previewInput ->
+                    BitmapFactory.Options().apply {
+                        inSampleSize = sample
+                        inPreferredConfig = Bitmap.Config.RGB_565
+                    }.let { options -> BitmapFactory.decodeStream(previewInput, null, options) }
+                }
+            }
         }
     }
     val image = bitmap
@@ -165,5 +181,22 @@ private fun calculateSelection(viewport: IntSize, image: Bitmap, zoom: Float, pa
     val t = a.y.coerceIn(0f, image.height - 1f)
     val rgt = b.x.coerceIn(l + 1f, image.width.toFloat())
     val bot = b.y.coerceIn(t + 1f, image.height.toFloat())
-    return CropSelection(l.toInt(), t.toInt(), (rgt - l).toInt().coerceAtLeast(1), (bot - t).toInt().coerceAtLeast(1))
+    val scaleX = originalWidth.toFloat() / image.width.toFloat()
+    val scaleY = originalHeight.toFloat() / image.height.toFloat()
+    val originalLeft = (l * scaleX).toInt().coerceIn(0, originalWidth - 1)
+    val originalTop = (t * scaleY).toInt().coerceIn(0, originalHeight - 1)
+    val originalRight = (rgt * scaleX).toInt().coerceIn(originalLeft + 1, originalWidth)
+    val originalBottom = (bot * scaleY).toInt().coerceIn(originalTop + 1, originalHeight)
+    return CropSelection(
+        originalLeft,
+        originalTop,
+        (originalRight - originalLeft).coerceAtLeast(1),
+        (originalBottom - originalTop).coerceAtLeast(1),
+    )
+}
+
+private fun calculatePreviewSample(width: Int, height: Int): Int {
+    var sample = 1
+    while (maxOf(width / sample, height / sample) > 1600) sample *= 2
+    return sample
 }
