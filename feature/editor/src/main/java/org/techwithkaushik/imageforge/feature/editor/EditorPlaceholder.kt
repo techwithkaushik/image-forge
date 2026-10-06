@@ -286,13 +286,13 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
         if (width == null || height == null || width <= 0 || height <= 0) return message("Enter valid width and height.")
         process(ImageOperation.Resize(width, height), "Resize complete.")
     }
-    private fun process(operation: ImageOperation, successMessage: String) {
+    private fun process(operation: ImageOperation, successMessage: String, metadataPolicy: org.techwithkaushik.imageforge.imageprocessor.MetadataPolicy = org.techwithkaushik.imageforge.imageprocessor.MetadataPolicy.PRESERVE_SUPPORTED) {
         val current = _state.value
         val uri = current.sourceUri ?: return message("Import an image first.")
         viewModelScope.launch {
             _state.value = current.copy(busy = true, message = null, outputUri = null)
             val mime = resolver.getType(uri) ?: "image/jpeg"
-            when (val result = processor(ImageProcessingRequest(ImageInput(uri, mime), operation)) { progress ->
+            when (val result = processor(ImageProcessingRequest(ImageInput(uri, mime), operation, metadataPolicy)) { progress ->
                 _state.value = _state.value.copy(progress = progress)
             }) {
                 is ForgeResult.Success -> _state.value = _state.value.copy(busy = false, outputUri = result.value.uri, message = successMessage)
