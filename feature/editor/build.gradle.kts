@@ -21,6 +21,7 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:imageprocessor"))
     implementation(project(":core:media"))
+    implementation(project(":core:ocr"))
     implementation(project(":core:storage"))
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(platform(libs.compose.bom))
