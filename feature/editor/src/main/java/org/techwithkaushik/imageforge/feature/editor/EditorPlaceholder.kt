@@ -26,8 +26,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -263,6 +266,14 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
         if (kb <= 0) return message("Target size must be greater than zero.")
         process(ImageOperation.Compress(kb * 1024L), "Compression complete.")
     }
+    internal val appContentResolver get() = getApplication<Application>().contentResolver
+
+    fun applyCropSelection(selection: CropSelection) {
+        if (_state.value.sourceUri == null) return message("Import an image first.")
+        if (selection.width <= 0 || selection.height <= 0) return message("Invalid crop selection.")
+        process(ImageOperation.Crop(selection.left, selection.top, selection.width, selection.height), "Crop complete.")
+    }
+
     fun cropCenter() {
         val current = _state.value
         val width = current.width.toIntOrNull()
@@ -335,9 +346,25 @@ public fun EditorScreen(
 ) {
     val viewModel: EditorViewModel = viewModel()
     val state by viewModel.state.collectAsState()
+    var showCropEditor by remember { mutableStateOf(false) }
 
     LaunchedEffect(imageUri, tool) {
         viewModel.initialize(imageUri?.let(Uri::parse), tool)
+    }
+
+    if (showCropEditor && state.sourceUri != null) {
+        CropEditorDialog(
+            resolver = viewModel.appContentResolver,
+            imageUri = state.sourceUri!!,
+            configuration = state.tool?.configuration?.crop ?: org.techwithkaushik.imageforge.common.CropConfiguration.flexible,
+            originalWidth = state.originalWidth,
+            originalHeight = state.originalHeight,
+            onDismiss = { showCropEditor = false },
+            onConfirm = { selection ->
+                showCropEditor = false
+                viewModel.applyCropSelection(selection)
+            },
+        )
     }
 
     Scaffold(
@@ -364,6 +391,11 @@ public fun EditorScreen(
                     Text("Import Image")
                 }
             } else {
+                if (state.tool?.toolType == org.techwithkaushik.imageforge.common.ToolType.IMAGE &&
+                    state.tool.configuration.crop.mode != CropMode.DISABLED
+                ) {
+                    CommonCropContent(state, onOpenCrop = { showCropEditor = true })
+                }
                 when (state.tool?.family) {
                     ProcessingFamily.RESIZE -> ResizeFamilyContent(state, viewModel)
                     ProcessingFamily.COMPRESSION -> CompressionFamilyContent(state, viewModel)
@@ -398,6 +430,24 @@ public fun EditorScreen(
     }
 }
 
+@Composable
+private fun CommonCropContent(state: EditorUiState, onOpenCrop: () -> Unit) {
+    val crop = state.tool?.configuration?.crop ?: return
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Crop", style = MaterialTheme.typography.titleMedium)
+        Text(
+            if (crop.mode == CropMode.FIXED) {
+                "Fixed: ${crop.width} × ${crop.height} ${crop.unit.name.lowercase()}"
+            } else {
+                "Flexible crop: choose ratio, then zoom and position the image."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Button(onClick = onOpenCrop, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
+            Text("Crop Image")
+        }
+    }
+}
 @Composable
 private fun OcrFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
     Text(state.tool?.title ?: "OCR", style = MaterialTheme.typography.headlineSmall)
