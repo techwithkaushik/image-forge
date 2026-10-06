@@ -159,6 +159,15 @@ public object ToolCatalog {
                 preset = normalized,
             )
 
+            normalized.contains("AI", ignoreCase = true) ||
+                normalized.contains("Upscale", ignoreCase = true) -> ToolDefinition(
+                id = ToolId(key),
+                title = normalized,
+                family = ProcessingFamily.AI,
+                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.AI),
+                preset = normalized,
+            )
+
             normalized.contains("DPI", ignoreCase = true) ||
                 normalized.contains("Quality", ignoreCase = true) ||
                 normalized.contains("Super Resolution", ignoreCase = true) -> ToolDefinition(
@@ -205,15 +214,6 @@ public object ToolCatalog {
                 title = normalized,
                 family = ProcessingFamily.METADATA,
                 capabilities = setOf(ToolCapability.IMPORT, ToolCapability.METADATA),
-                preset = normalized,
-            )
-
-            normalized.contains("AI", ignoreCase = true) ||
-                normalized.contains("Upscale", ignoreCase = true) -> ToolDefinition(
-                id = ToolId(key),
-                title = normalized,
-                family = ProcessingFamily.AI,
-                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.AI),
                 preset = normalized,
             )
 
