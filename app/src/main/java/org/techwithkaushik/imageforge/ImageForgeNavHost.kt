@@ -70,6 +70,7 @@ internal fun ImageForgeNavHost(
             EditorScreen(
                 imageUri = route.imageUri,
                 toolId = route.toolId,
+                toolTitle = route.toolTitle,
                 onImport = onPickImage,
                 onBack = { navController.popBackStack() },
             )
