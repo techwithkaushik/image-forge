@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.techwithkaushik.imageforge.common.CropMode
 import org.techwithkaushik.imageforge.common.ForgeResult
 import org.techwithkaushik.imageforge.common.ProcessingFamily
 import org.techwithkaushik.imageforge.common.ToolDefinition
@@ -391,12 +392,14 @@ public fun EditorScreen(
                     Text("Import Image")
                 }
             } else {
-                if (state.tool?.toolType == org.techwithkaushik.imageforge.common.ToolType.IMAGE &&
-                    state.tool.configuration.crop.mode != CropMode.DISABLED
+                val currentTool = state.tool
+                if (currentTool != null &&
+                    currentTool.toolType == org.techwithkaushik.imageforge.common.ToolType.IMAGE &&
+                    currentTool.configuration.crop.mode != CropMode.DISABLED
                 ) {
                     CommonCropContent(state, onOpenCrop = { showCropEditor = true })
                 }
-                when (state.tool?.family) {
+                when (currentTool?.family) {
                     ProcessingFamily.RESIZE -> ResizeFamilyContent(state, viewModel)
                     ProcessingFamily.COMPRESSION -> CompressionFamilyContent(state, viewModel)
                     ProcessingFamily.CONVERSION -> ConversionFamilyContent(state, viewModel)
