@@ -189,6 +189,24 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
             }
         }
     }
+    fun viewMetadata() {
+        val current = _state.value
+        val uri = current.sourceUri ?: return message("Import an image first.")
+        viewModelScope.launch(Dispatchers.IO) {
+            when (val result = processor(ImageProcessingRequest(ImageInput(uri, resolver.getType(uri)), ImageOperation.Inspect))) {
+                is ForgeResult.Success -> _state.value = _state.value.copy(message = result.value.metadata.metadata?.toString() ?: "No EXIF metadata found.")
+                is ForgeResult.Failure -> _state.value = _state.value.copy(message = "Metadata read failed: ${result.error}")
+            }
+        }
+    }
+
+    fun removeMetadata() {
+        val current = _state.value
+        val uri = current.sourceUri ?: return message("Import an image first.")
+        val mime = resolver.getType(uri) ?: "image/jpeg"
+        val outputMime = if (mime.equals("image/png", true) || mime.equals("image/webp", true)) mime else "image/jpeg"
+        process(ImageOperation.Convert(outputMime), "Sensitive metadata removed.", org.techwithkaushik.imageforge.imageprocessor.MetadataPolicy.STRIP_ALL)
+    }
     fun updateTargetKb(value: String) {
         if (value.all(Char::isDigit) && value.length <= 7) _state.value = _state.value.copy(targetKb = value)
     }
@@ -318,6 +336,7 @@ public fun EditorScreen(
                     ProcessingFamily.SIGNATURE -> SignatureFamilyContent(viewModel)
                     ProcessingFamily.EFFECTS -> EffectsFamilyContent(state, viewModel)
                     ProcessingFamily.OCR -> OcrFamilyContent(state, viewModel)
+                    ProcessingFamily.METADATA -> MetadataFamilyContent(state, viewModel)
                     else -> {
                         Text(
                             "This processing family is ready for connection.",
@@ -347,6 +366,14 @@ private fun OcrFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
     Button(onClick = viewModel::recognizeText, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Extract Text") }
     state.ocrText?.let { text ->
         OutlinedTextField(value = text, onValueChange = {}, readOnly = true, label = { Text("Recognized text") }, modifier = Modifier.fillMaxWidth())
+    }
+}
+@Composable
+private fun MetadataFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Metadata", style = MaterialTheme.typography.headlineSmall)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = viewModel::viewMetadata, modifier = Modifier.weight(1f)) { Text("View") }
+        Button(onClick = viewModel::removeMetadata, enabled = !state.busy, modifier = Modifier.weight(1f)) { Text("Remove") }
     }
 }
 @Composable
