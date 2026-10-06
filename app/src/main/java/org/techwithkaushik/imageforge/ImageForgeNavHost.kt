@@ -7,6 +7,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import kotlinx.serialization.Serializable
+import org.techwithkaushik.imageforge.common.ToolDefinition
 import org.techwithkaushik.imageforge.feature.dashboard.DashboardScreen
 import org.techwithkaushik.imageforge.feature.documents.DocumentsScreen
 import org.techwithkaushik.imageforge.feature.editor.EditorScreen
@@ -15,7 +16,7 @@ import org.techwithkaushik.imageforge.feature.editor.EditorScreen
 private data object DashboardRoute
 
 @Serializable
-private data class EditorRoute(val imageUri: String? = null, val tool: String? = null)
+private data class EditorRoute(val imageUri: String? = null, val toolId: String? = null)
 
 @Serializable
 private data object DocumentsRoute
@@ -27,12 +28,12 @@ internal fun ImageForgeNavHost(
     onImportedImageConsumed: () -> Unit,
 ) {
     val navController = rememberNavController()
-    var pendingTool: String? = null
+    var pendingTool: ToolDefinition? = null
 
     LaunchedEffect(importedImageUri) {
         if (importedImageUri != null) {
             val tool = pendingTool
-            navController.navigate(EditorRoute(imageUri = importedImageUri, tool = tool)) {
+            navController.navigate(EditorRoute(imageUri = importedImageUri, toolId = tool?.id?.value)) {
                 launchSingleTop = true
             }
             pendingTool = null
@@ -48,7 +49,7 @@ internal fun ImageForgeNavHost(
             DashboardScreen(
                 onOpenEditor = { tool ->
                     pendingTool = tool
-                    navController.navigate(EditorRoute(tool = tool))
+                    navController.navigate(EditorRoute(toolId = tool.id.value))
                 },
                 onImportImage = onPickImage,
                 onOpenDocuments = { navController.navigate(DocumentsRoute) },
@@ -56,10 +57,15 @@ internal fun ImageForgeNavHost(
         }
         composable<EditorRoute> { entry ->
             val route = entry.toRoute<EditorRoute>()
-            pendingTool = route.tool
+            pendingTool = route.toolId?.let { id -> ToolDefinition(
+                id = org.techwithkaushik.imageforge.common.ToolId(id),
+                title = id,
+                family = org.techwithkaushik.imageforge.common.ProcessingFamily.EDITING,
+                capabilities = emptySet(),
+            ) }
             EditorScreen(
                 imageUri = route.imageUri,
-                tool = route.tool,
+                toolId = route.toolId,
                 onImport = onPickImage,
                 onBack = { navController.popBackStack() },
             )
