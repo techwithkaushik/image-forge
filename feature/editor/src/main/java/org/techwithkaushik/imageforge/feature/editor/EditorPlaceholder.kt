@@ -37,6 +37,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.techwithkaushik.imageforge.common.ForgeResult
+import org.techwithkaushik.imageforge.common.ProcessingFamily
+import org.techwithkaushik.imageforge.common.ToolCatalog
 import org.techwithkaushik.imageforge.imageprocessor.AndroidImageRepository
 import org.techwithkaushik.imageforge.imageprocessor.ImageInput
 import org.techwithkaushik.imageforge.imageprocessor.ImageOperation
@@ -47,6 +49,7 @@ import org.techwithkaushik.imageforge.storage.StorageDestination
 
 internal data class EditorUiState(
     val tool: String? = null,
+    val family: ProcessingFamily? = null,
     val sourceUri: Uri? = null,
     val width: String = "",
     val height: String = "",
@@ -66,9 +69,14 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
     private val _state = MutableStateFlow(EditorUiState())
     val state: StateFlow<EditorUiState> = _state.asStateFlow()
 
-    fun initialize(uri: Uri?, tool: String?) {
-        if (_state.value.sourceUri == uri && _state.value.tool == tool) return
-        _state.value = EditorUiState(tool = tool, sourceUri = uri)
+    fun initialize(uri: Uri?, toolId: String?, toolTitle: String?) {
+        val definition = toolTitle?.let(ToolCatalog::definition)
+        if (_state.value.sourceUri == uri && _state.value.tool == toolTitle) return
+        _state.value = EditorUiState(
+            tool = definition?.title ?: toolTitle ?: toolId,
+            family = definition?.family,
+            sourceUri = uri,
+        )
         if (uri != null) {
             viewModelScope.launch(Dispatchers.IO) {
                 val bounds = resolver.openInputStream(uri)?.use { input ->
@@ -194,19 +202,20 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
 @Composable
 public fun EditorScreen(
     imageUri: String? = null,
-    tool: String? = null,
+    toolId: String? = null,
+    toolTitle: String? = null,
     onBack: () -> Unit = {},
     onImport: () -> Unit = {},
 ) {
     val viewModel: EditorViewModel = viewModel()
     val state by viewModel.state.collectAsState()
     LaunchedEffect(imageUri, tool) {
-        viewModel.initialize(imageUri?.let(Uri::parse), tool)
+        viewModel.initialize(imageUri?.let(Uri::parse), toolId, toolTitle)
     }
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(tool ?: "Editor") },
+                title = { Text(toolTitle ?: "Editor") },
                 navigationIcon = {
                     androidx.compose.material3.TextButton(onClick = onBack) { Text("Back") }
                 },
@@ -226,8 +235,8 @@ public fun EditorScreen(
                 Button(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
                     Text("Import Image")
                 }
-            } else if (tool?.contains("Resize Image", ignoreCase = true) == true) {
-                Text("Resize Image by Pixel", style = MaterialTheme.typography.headlineSmall)
+            } else if (state.family == ProcessingFamily.RESIZE) {
+                Text(state.tool ?: "Resize Image", style = MaterialTheme.typography.headlineSmall)
                 Text(
                     "Original: ${state.originalWidth} × ${state.originalHeight} px",
                     style = MaterialTheme.typography.bodyMedium,
