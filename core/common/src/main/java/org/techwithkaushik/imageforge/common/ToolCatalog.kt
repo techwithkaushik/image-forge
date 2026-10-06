@@ -415,7 +415,11 @@ public object ToolCatalog {
                 title = normalized,
                 family = ProcessingFamily.RESIZE,
                 functionType = FunctionType.CROP_RESIZE,
-                capabilities = setOf(ToolCapability.IMPORT, ToolCapability.RESIZE, ToolCapability.CROP),
+                capabilities = if (normalized.contains("No Crop", ignoreCase = true)) {
+                    setOf(ToolCapability.IMPORT, ToolCapability.RESIZE)
+                } else {
+                    setOf(ToolCapability.IMPORT, ToolCapability.RESIZE, ToolCapability.CROP)
+                },
                 configuration = resizeConfiguration(normalized),
             )
 
