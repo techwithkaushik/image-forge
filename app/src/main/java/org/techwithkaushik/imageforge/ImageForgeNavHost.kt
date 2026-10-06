@@ -27,12 +27,15 @@ internal fun ImageForgeNavHost(
     onImportedImageConsumed: () -> Unit,
 ) {
     val navController = rememberNavController()
+    var pendingTool: String? = null
 
     LaunchedEffect(importedImageUri) {
         if (importedImageUri != null) {
-            navController.navigate(EditorRoute(importedImageUri)) {
+            val tool = pendingTool
+            navController.navigate(EditorRoute(imageUri = importedImageUri, tool = tool)) {
                 launchSingleTop = true
             }
+            pendingTool = null
             onImportedImageConsumed()
         }
     }
@@ -43,7 +46,10 @@ internal fun ImageForgeNavHost(
     ) {
         composable<DashboardRoute> {
             DashboardScreen(
-                onOpenEditor = { tool -> navController.navigate(EditorRoute(tool = tool)) },
+                onOpenEditor = { tool ->
+                    pendingTool = tool
+                    navController.navigate(EditorRoute(tool = tool))
+                },
                 onImportImage = onPickImage,
                 onOpenDocuments = { navController.navigate(DocumentsRoute) },
             )
