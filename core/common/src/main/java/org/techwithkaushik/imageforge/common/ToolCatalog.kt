@@ -98,7 +98,7 @@ public object ToolCatalog {
                 title = normalized,
                 family = ProcessingFamily.OCR,
                 capabilities = setOf(ToolCapability.IMPORT, ToolCapability.OCR),
-                destination = ToolDestination.DOCUMENTS,
+                destination = ToolDestination.EDITOR,
             )
 
             normalized.contains("Passport", ignoreCase = true) ||
