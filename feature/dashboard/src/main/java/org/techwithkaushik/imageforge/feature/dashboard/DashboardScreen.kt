@@ -35,6 +35,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import org.techwithkaushik.imageforge.common.ToolCatalog
+import org.techwithkaushik.imageforge.common.ToolDefinition
 
 private data class DashboardSection(
     val title: String,
@@ -246,7 +248,7 @@ private val sections = listOf(
 @Composable
 public fun DashboardScreen(
     onImportImage: () -> Unit = {},
-    onOpenEditor: (String) -> Unit = {},
+    onOpenEditor: (ToolDefinition) -> Unit = {},
     onOpenDocuments: () -> Unit = {},
 ) {
     var query by remember { mutableStateOf("") }
@@ -327,15 +329,11 @@ public fun DashboardScreen(
                     DashboardToolSection(
                         section = section,
                         onToolClick = { tool ->
-                            if (tool.contains("PDF", ignoreCase = true) ||
-                                tool.contains("OCR", ignoreCase = true) ||
-                                tool.contains("Passport", ignoreCase = true) ||
-                                tool.contains("Signature", ignoreCase = true) ||
-                                tool.contains("Text", ignoreCase = true)
-                            ) {
+                            val definition = ToolCatalog.definition(tool)
+                            if (definition.destination.name == "DOCUMENTS") {
                                 onOpenDocuments()
                             } else {
-                                onOpenEditor(tool)
+                                onOpenEditor(definition)
                             }
                         },
                     )
