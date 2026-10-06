@@ -40,6 +40,9 @@ import org.techwithkaushik.imageforge.common.ForgeResult
 import org.techwithkaushik.imageforge.common.ProcessingFamily
 import org.techwithkaushik.imageforge.common.ToolDefinition
 import org.techwithkaushik.imageforge.imageprocessor.AndroidImageRepository
+import org.techwithkaushik.imageforge.ocr.AndroidOcrProcessor
+import org.techwithkaushik.imageforge.ocr.OcrInput
+import org.techwithkaushik.imageforge.ocr.OcrScript
 import org.techwithkaushik.imageforge.imageprocessor.ImageInput
 import org.techwithkaushik.imageforge.imageprocessor.ImageOperation
 import org.techwithkaushik.imageforge.imageprocessor.ImageProcessingRequest
@@ -66,10 +69,12 @@ internal data class EditorUiState(
     val progress: org.techwithkaushik.imageforge.common.ProcessingProgress? = null,
     val busy: Boolean = false,
     val message: String? = null,
+    val ocrText: String? = null,
 )
 
 internal class EditorViewModel(application: Application) : AndroidViewModel(application) {
     private val processor = ProcessImageUseCase(AndroidImageRepository(application))
+    private val ocr = AndroidOcrProcessor(application)
     private val storage = AndroidStorageGateway(application)
     private val resolver = application.contentResolver
     private val _state = MutableStateFlow(EditorUiState())
@@ -173,6 +178,17 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
+    fun recognizeText() {
+        val uri = _state.value.sourceUri ?: return message("Import an image first.")
+        viewModelScope.launch {
+            _state.value = _state.value.copy(busy = true, message = null, ocrText = null)
+            val script = if (_state.value.tool?.title?.contains("Hindi", true) == true) OcrScript.DEVANAGARI else OcrScript.LATIN
+            when (val result = ocr.recognize(OcrInput(uri = uri, mimeType = resolver.getType(uri)), org.techwithkaushik.imageforge.ocr.OcrOptions(script = script))) {
+                is ForgeResult.Success -> _state.value = _state.value.copy(busy = false, ocrText = result.value.text, message = "OCR complete.")
+                is ForgeResult.Failure -> _state.value = _state.value.copy(busy = false, message = "OCR failed: ${result.error}")
+            }
+        }
+    }
     fun updateTargetKb(value: String) {
         if (value.all(Char::isDigit) && value.length <= 7) _state.value = _state.value.copy(targetKb = value)
     }
@@ -301,6 +317,7 @@ public fun EditorScreen(
                     ProcessingFamily.PASSPORT_ID -> PassportFamilyContent(state, viewModel)
                     ProcessingFamily.SIGNATURE -> SignatureFamilyContent(viewModel)
                     ProcessingFamily.EFFECTS -> EffectsFamilyContent(state, viewModel)
+                    ProcessingFamily.OCR -> OcrFamilyContent(state, viewModel)
                     else -> {
                         Text(
                             "This processing family is ready for connection.",
@@ -323,6 +340,15 @@ public fun EditorScreen(
     }
 }
 
+@Composable
+private fun OcrFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "OCR", style = MaterialTheme.typography.headlineSmall)
+    Text("Offline OCR runs on-device; no image upload is required.")
+    Button(onClick = viewModel::recognizeText, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Extract Text") }
+    state.ocrText?.let { text ->
+        OutlinedTextField(value = text, onValueChange = {}, readOnly = true, label = { Text("Recognized text") }, modifier = Modifier.fillMaxWidth())
+    }
+}
 @Composable
 private fun CompressionFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
     Text(state.tool?.title ?: "Compression", style = MaterialTheme.typography.headlineSmall)
