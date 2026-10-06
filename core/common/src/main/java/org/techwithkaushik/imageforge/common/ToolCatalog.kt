@@ -32,6 +32,112 @@ public enum class ProcessingFamily {
 @JvmInline
 public value class ToolId(public val value: String)
 
+public enum class ToolType {
+    IMAGE,
+    PDF,
+    DOCUMENT,
+}
+
+public enum class FunctionType {
+    RESIZE,
+    CROP,
+    CROP_RESIZE,
+    FIXED_SIZE_CROP_RESIZE,
+    COMPRESSION,
+    CONVERSION,
+    TRANSFORM,
+    PASSPORT_PHOTO,
+    SIGNATURE,
+    EFFECT,
+    DPI_QUALITY,
+    METADATA,
+    OCR,
+    IMAGE_TO_PDF,
+    PDF_TO_IMAGE,
+    BATCH,
+    AI,
+    EDITING,
+}
+
+public enum class DimensionUnit {
+    PIXEL,
+    MM,
+    CM,
+    INCH,
+}
+
+public enum class CropMode {
+    DISABLED,
+    FLEXIBLE,
+    FIXED,
+}
+
+public data class CropConfiguration(
+    val mode: CropMode = CropMode.FLEXIBLE,
+    val width: Double? = null,
+    val height: Double? = null,
+    val unit: DimensionUnit = DimensionUnit.PIXEL,
+    val aspectRatio: Pair<Int, Int>? = null,
+    val allowFreeCrop: Boolean = true,
+    val allowRatioCrop: Boolean = true,
+    val allowDimensionCrop: Boolean = true,
+    val allowZoom: Boolean = true,
+    val allowPan: Boolean = true,
+    val allowFrameResize: Boolean = true,
+) {
+    init {
+        if (mode == CropMode.FIXED) {
+            require(width != null && width > 0)
+            require(height != null && height > 0)
+            require(!allowFrameResize)
+        }
+    }
+
+    public companion object {
+        public val disabled: CropConfiguration = CropConfiguration(
+            mode = CropMode.DISABLED,
+            allowFreeCrop = false,
+            allowRatioCrop = false,
+            allowDimensionCrop = false,
+            allowZoom = false,
+            allowPan = false,
+            allowFrameResize = false,
+        )
+
+        public val flexible: CropConfiguration = CropConfiguration()
+
+        public fun fixed(
+            width: Double,
+            height: Double,
+            unit: DimensionUnit,
+            aspectRatio: Pair<Int, Int>? = null,
+        ): CropConfiguration = CropConfiguration(
+            mode = CropMode.FIXED,
+            width = width,
+            height = height,
+            unit = unit,
+            aspectRatio = aspectRatio,
+            allowFreeCrop = false,
+            allowRatioCrop = false,
+            allowDimensionCrop = false,
+            allowZoom = true,
+            allowPan = true,
+            allowFrameResize = false,
+        )
+    }
+}
+
+public data class ToolConfiguration(
+    val crop: CropConfiguration = CropConfiguration.flexible,
+    val outputWidth: Double? = null,
+    val outputHeight: Double? = null,
+    val outputUnit: DimensionUnit = DimensionUnit.PIXEL,
+    val outputDpi: Int? = null,
+    val targetKb: Long? = null,
+    val outputMimeType: String? = null,
+    val presetLabel: String? = null,
+)
+
 public enum class ToolDestination {
     EDITOR,
     DOCUMENTS,
@@ -66,6 +172,9 @@ public data class ToolDefinition(
     val capabilities: Set<ToolCapability>,
     val destination: ToolDestination = ToolDestination.EDITOR,
     val preset: String? = null,
+    val toolType: ToolType = ToolType.IMAGE,
+    val functionType: FunctionType = FunctionType.EDITING,
+    val configuration: ToolConfiguration = ToolConfiguration(),
 )
 
 /**
