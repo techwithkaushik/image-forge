@@ -73,6 +73,7 @@ internal data class EditorUiState(
     val originalWidth: Int = 0,
     val originalHeight: Int = 0,
     val outputUri: Uri? = null,
+    val outputMimeType: String? = null,
     val progress: org.techwithkaushik.imageforge.common.ProcessingProgress? = null,
     val busy: Boolean = false,
     val message: String? = null,
@@ -307,7 +308,12 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
             when (val result = processor(ImageProcessingRequest(ImageInput(uri, mime), operation, metadataPolicy)) { progress ->
                 _state.value = _state.value.copy(progress = progress)
             }) {
-                is ForgeResult.Success -> _state.value = _state.value.copy(busy = false, outputUri = result.value.uri, message = successMessage)
+                is ForgeResult.Success -> _state.value = _state.value.copy(
+                    busy = false,
+                    outputUri = result.value.uri,
+                    outputMimeType = result.value.metadata.mimeType,
+                    message = successMessage,
+                )
                 is ForgeResult.Failure -> _state.value = _state.value.copy(busy = false, message = "Processing failed: ${result.error}")
             }
         }
@@ -319,8 +325,8 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
             val result = storage.saveImage(
                 source = output,
                 destination = StorageDestination.Pictures,
-                displayName = "ImageForge-${System.currentTimeMillis()}.jpg",
-                mimeType = "image/jpeg",
+                displayName = "ImageForge-${System.currentTimeMillis()}${extensionForMime(_state.value.outputMimeType)}",
+                mimeType = _state.value.outputMimeType ?: "image/jpeg",
             )
             _state.value = _state.value.copy(
                 busy = false,
@@ -330,6 +336,13 @@ internal class EditorViewModel(application: Application) : AndroidViewModel(appl
                 },
             )
         }
+    }
+
+    private fun extensionForMime(mimeType: String?): String = when (mimeType?.lowercase()) {
+        "image/png" -> ".png"
+        "image/webp" -> ".webp"
+        "application/pdf" -> ".pdf"
+        else -> ".jpg"
     }
 
     private fun message(value: String) {
