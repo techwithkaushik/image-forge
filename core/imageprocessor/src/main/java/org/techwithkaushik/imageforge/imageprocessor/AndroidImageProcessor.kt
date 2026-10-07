@@ -66,7 +66,8 @@ public class AndroidImageProcessor(
             }
 
             if (operation is ImageOperation.ExtractSignature &&
-                !isWithinDecodeBudget(bounds.first, bounds.second)
+                !isWithinDecodeBudget(bounds.first, bounds.second) &&
+                bounds.first.toLong() * bounds.second.toLong() > policy.maxDecodePixels * 4L
             ) {
                 return@withContext ForgeResult.Failure(
                     ForgeError.InvalidInput("Signature extraction requires an input within the configured bitmap memory budget."),
