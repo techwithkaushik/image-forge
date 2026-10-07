@@ -143,12 +143,17 @@ public class AndroidImageProcessor(
                     } else {
                         decodeFullResolution(request.input.uri)
                     }
-                is ImageOperation.PassportPhoto,
+                is ImageOperation.PassportPhoto -> decodeForTargetBudget(
+                    request.input.uri,
+                    rawBounds,
+                    operation.options.preset.widthPx,
+                    operation.options.preset.heightPx,
+                )
                 is ImageOperation.ExtractSignature,
                 is ImageOperation.Convert,
                 is ImageOperation.Rotate,
                 is ImageOperation.Flip,
-                is ImageOperation.ColorAdjust -> decodeFullResolution(request.input.uri)
+                is ImageOperation.ColorAdjust -> decodeSampled(request.input.uri, rawBounds)
                 else -> decodeSampled(request.input.uri, rawBounds)
             } ?: return@withContext ForgeResult.Failure(
                 ForgeError.InvalidInput("The image could not be decoded within the memory budget."),
@@ -352,6 +357,13 @@ public class AndroidImageProcessor(
             }.let { options -> BitmapFactory.decodeStream(input, null, options) }
         }
     }
+
+    private fun decodeForTargetBudget(
+        uri: Uri,
+        bounds: BitmapFactory.Options,
+        targetWidth: Int,
+        targetHeight: Int,
+    ): Bitmap? = decodeForResize(uri, bounds, targetWidth, targetHeight)
 
     private fun decodeFullResolution(uri: Uri): Bitmap? =
         resolver.openInputStream(uri)?.use { input ->
