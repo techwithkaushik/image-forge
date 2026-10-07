@@ -1,77 +1,632 @@
 package org.techwithkaushik.imageforge.feature.editor
 
+import android.app.Application
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.graphics.pdf.PdfDocument
+import java.io.File
+import java.io.FileOutputStream
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import org.techwithkaushik.imageforge.designsystem.ForgeActionCard
-import org.techwithkaushik.imageforge.designsystem.ForgeScreenSurface
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.techwithkaushik.imageforge.common.CropMode
+import org.techwithkaushik.imageforge.common.ForgeResult
+import org.techwithkaushik.imageforge.common.ProcessingFamily
+import org.techwithkaushik.imageforge.common.ToolDefinition
+import org.techwithkaushik.imageforge.imageprocessor.AndroidImageRepository
+import org.techwithkaushik.imageforge.ocr.AndroidOcrProcessor
+import org.techwithkaushik.imageforge.ocr.OcrInput
+import org.techwithkaushik.imageforge.ocr.OcrScript
+import org.techwithkaushik.imageforge.imageprocessor.ImageInput
+import org.techwithkaushik.imageforge.imageprocessor.ImageOperation
+import org.techwithkaushik.imageforge.imageprocessor.ImageProcessingRequest
+import org.techwithkaushik.imageforge.imageprocessor.ProcessImageUseCase
+import org.techwithkaushik.imageforge.storage.AndroidStorageGateway
+import org.techwithkaushik.imageforge.storage.StorageDestination
+
+internal data class EditorUiState(
+    val tool: ToolDefinition? = null,
+    val sourceUri: Uri? = null,
+    val width: String = "",
+    val height: String = "",
+    val targetKb: String = "100",
+    val rotateDegrees: Int = 90,
+    val flipHorizontal: Boolean = false,
+    val flipVertical: Boolean = false,
+    val brightness: Float = 0f,
+    val contrast: Float = 1f,
+    val saturation: Float = 1f,
+    val keepAspectRatio: Boolean = true,
+    val originalWidth: Int = 0,
+    val originalHeight: Int = 0,
+    val outputUri: Uri? = null,
+    val outputMimeType: String? = null,
+    val progress: org.techwithkaushik.imageforge.common.ProcessingProgress? = null,
+    val busy: Boolean = false,
+    val message: String? = null,
+    val ocrText: String? = null,
+)
+
+internal class EditorViewModel(application: Application) : AndroidViewModel(application) {
+    private val processor = ProcessImageUseCase(AndroidImageRepository(application))
+    private val ocr = AndroidOcrProcessor(application)
+    private val storage = AndroidStorageGateway(application)
+    private val resolver = application.contentResolver
+    private val _state = MutableStateFlow(EditorUiState())
+    val state: StateFlow<EditorUiState> = _state.asStateFlow()
+
+    fun initialize(uri: Uri?, tool: ToolDefinition?) {
+        if (_state.value.sourceUri == uri && _state.value.tool == tool) return
+        val preset = resizePreset(tool?.title)
+        val targetKb = targetKbPreset(tool?.title)
+        _state.value = EditorUiState(
+            tool = tool,
+            sourceUri = uri,
+            width = preset?.first?.toString() ?: "",
+            height = preset?.second?.toString() ?: "",
+            targetKb = targetKb?.toString() ?: "100",
+        )
+        if (uri != null) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val bounds = resolver.openInputStream(uri)?.use { input ->
+                    BitmapFactory.Options().also {
+                        it.inJustDecodeBounds = true
+                        BitmapFactory.decodeStream(input, null, it)
+                    }
+                }
+                if (bounds != null && bounds.outWidth > 0 && bounds.outHeight > 0) {
+                    _state.value = _state.value.copy(
+                        width = _state.value.width.ifBlank { bounds.outWidth.toString() },
+                        height = _state.value.height.ifBlank { bounds.outHeight.toString() },
+                        originalWidth = bounds.outWidth,
+                        originalHeight = bounds.outHeight,
+                    )
+                }
+            }
+        }
+    }
+
+    private fun resizePreset(title: String?): Pair<Int, Int>? {
+        val value = title?.lowercase() ?: return null
+        return when {
+            "a4" in value -> 2480 to 3508
+            "instagram grid" in value -> 1080 to 1080
+            "instagram" in value -> 1080 to 1080
+            "whatsapp dp" in value -> 500 to 500
+            "youtube banner" in value -> 2560 to 1440
+            "600x600" in value || "2 x 2 inch" in value -> 600 to 600
+            "3 x 4 inch" in value -> 900 to 1200
+            "4 x 6 inch" in value -> 1200 to 1800
+            "35mm x 45mm" in value || "3.5cm x 4.5cm" in value || "35mm" in value -> 413 to 531
+            "signature 50mm x 20mm" in value -> 591 to 236
+            "6cm x 2cm" in value -> 709 to 236
+            else -> null
+        }
+    }
+
+    private fun targetKbPreset(title: String?): Long? =
+        Regex("""(\d+)\s*(kb|mb)""").find(title?.lowercase().orEmpty())?.let { match ->
+            val value = match.groupValues[1].toLong()
+            if (match.groupValues[2] == "mb") value * 1024L else value
+        }
+    fun updateWidth(value: String) {
+        if (value.all(Char::isDigit) && value.length <= 5) {
+            val current = _state.value
+            if (current.keepAspectRatio) {
+                val width = value.toIntOrNull()
+                val ow = current.originalWidth
+                val oh = current.originalHeight
+                if (width != null && width > 0 && ow > 0 && oh > 0) {
+                    val height = (width.toLong() * oh / ow).coerceAtLeast(1L).coerceAtMost(99_999L)
+                    _state.value = current.copy(width = value, height = height.toString())
+                    return
+                }
+            }
+            _state.value = current.copy(width = value)
+        }
+    }
+
+    fun updateHeight(value: String) {
+        if (value.all(Char::isDigit) && value.length <= 5) {
+            val current = _state.value
+            if (current.keepAspectRatio) {
+                val height = value.toIntOrNull()
+                if (height != null && height > 0 && current.originalWidth > 0 && current.originalHeight > 0) {
+                    val width = (height.toLong() * current.originalWidth / current.originalHeight)
+                        .coerceAtLeast(1L).coerceAtMost(99_999L)
+                    _state.value = current.copy(height = value, width = width.toString())
+                    return
+                }
+            }
+            _state.value = current.copy(height = value)
+        }
+    }
+
+    fun setKeepAspectRatio(enabled: Boolean) {
+        val current = _state.value
+        _state.value = current.copy(keepAspectRatio = enabled)
+        if (enabled && current.originalWidth > 0 && current.originalHeight > 0) {
+            val width = current.width.toIntOrNull() ?: return
+            val height = (width.toLong() * current.originalHeight / current.originalWidth)
+                .coerceAtLeast(1L).coerceAtMost(99_999L)
+            _state.value = _state.value.copy(height = height.toString())
+        }
+    }
+
+    fun imageToPdf() {
+        val current = _state.value
+        val uri = current.sourceUri ?: return message("Import an image first.")
+        viewModelScope.launch(Dispatchers.IO) {
+            _state.value = current.copy(busy = true, message = null, outputUri = null)
+            try {
+                val bitmap = decodePdfBitmap(uri)
+                    ?: throw IllegalArgumentException("Unable to decode image for PDF within the memory budget.")
+                val document = PdfDocument()
+                val pageInfo = PdfDocument.PageInfo.Builder(bitmap.width, bitmap.height, 1).create()
+                val page = document.startPage(pageInfo)
+                page.canvas.drawBitmap(bitmap, 0f, 0f, null)
+                document.finishPage(page)
+                val file = File(getApplication<Application>().cacheDir, "imageforge-${System.currentTimeMillis()}.pdf")
+                FileOutputStream(file).use { document.writeTo(it) }
+                document.close()
+                bitmap.recycle()
+                _state.value = _state.value.copy(busy = false, outputUri = Uri.fromFile(file), message = "PDF created.")
+            } catch (t: Throwable) {
+                _state.value = _state.value.copy(busy = false, message = "PDF failed: ${t.message ?: "Unable to create PDF."}")
+            }
+        }
+    }
+
+    private fun decodePdfBitmap(uri: Uri): android.graphics.Bitmap? {
+        val bounds = resolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.Options().also {
+                it.inJustDecodeBounds = true
+                BitmapFactory.decodeStream(input, null, it)
+            }
+        } ?: return null
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while ((bounds.outWidth.toLong() / sample) * (bounds.outHeight.toLong() / sample) > 8_000_000L) sample *= 2
+        return resolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.Options().apply {
+                inSampleSize = sample
+                inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+            }.let { options -> BitmapFactory.decodeStream(input, null, options) }
+        }
+    }
+
+    fun savePdf() {
+        val output = _state.value.outputUri ?: return message("Create the PDF first.")
+        viewModelScope.launch {
+            _state.value = _state.value.copy(busy = true)
+            val result = storage.saveImage(output, StorageDestination.Downloads, "ImageForge-${System.currentTimeMillis()}.pdf", "application/pdf")
+            _state.value = _state.value.copy(busy = false, message = when (result) {
+                is ForgeResult.Success -> "PDF saved to Downloads/ImageForge."
+                is ForgeResult.Failure -> "PDF save failed: ${result.error}"
+            })
+        }
+    }
+    fun recognizeText() {
+        val uri = _state.value.sourceUri ?: return message("Import an image first.")
+        viewModelScope.launch {
+            _state.value = _state.value.copy(busy = true, message = null, ocrText = null)
+            val script = if (_state.value.tool?.title?.contains("Hindi", true) == true) OcrScript.DEVANAGARI else OcrScript.LATIN
+            when (val result = ocr.recognize(OcrInput(uri = uri, mimeType = resolver.getType(uri)), org.techwithkaushik.imageforge.ocr.OcrOptions(script = script))) {
+                is ForgeResult.Success -> _state.value = _state.value.copy(busy = false, ocrText = result.value.text, message = "OCR complete.")
+                is ForgeResult.Failure -> _state.value = _state.value.copy(busy = false, message = "OCR failed: ${result.error}")
+            }
+        }
+    }
+    fun viewMetadata() {
+        val current = _state.value
+        val uri = current.sourceUri ?: return message("Import an image first.")
+        viewModelScope.launch(Dispatchers.IO) {
+            when (val result = processor(ImageProcessingRequest(ImageInput(uri, resolver.getType(uri)), ImageOperation.Inspect))) {
+                is ForgeResult.Success -> _state.value = _state.value.copy(message = result.value.metadata.metadata?.toString() ?: "No EXIF metadata found.")
+                is ForgeResult.Failure -> _state.value = _state.value.copy(message = "Metadata read failed: ${result.error}")
+            }
+        }
+    }
+
+    fun removeMetadata() {
+        val current = _state.value
+        val uri = current.sourceUri ?: return message("Import an image first.")
+        val mime = resolver.getType(uri) ?: "image/jpeg"
+        val outputMime = if (mime.equals("image/png", true) || mime.equals("image/webp", true)) mime else "image/jpeg"
+        process(ImageOperation.Convert(outputMime), "Sensitive metadata removed.", org.techwithkaushik.imageforge.imageprocessor.MetadataPolicy.STRIP_ALL)
+    }
+    fun updateTargetKb(value: String) {
+        if (value.all(Char::isDigit) && value.length <= 7) _state.value = _state.value.copy(targetKb = value)
+    }
+    fun rotate() = process(ImageOperation.Rotate(_state.value.rotateDegrees), "Rotate complete.")
+    fun setRotateDegrees(value: Int) { _state.value = _state.value.copy(rotateDegrees = value) }
+    fun setFlipHorizontal(value: Boolean) { _state.value = _state.value.copy(flipHorizontal = value) }
+    fun setFlipVertical(value: Boolean) { _state.value = _state.value.copy(flipVertical = value) }
+    fun flip() {
+        val current = _state.value
+        if (!current.flipHorizontal && !current.flipVertical) return message("Select horizontal or vertical flip.")
+        process(ImageOperation.Flip(current.flipHorizontal, current.flipVertical), "Flip complete.")
+    }
+    fun convert(mimeType: String) = process(ImageOperation.Convert(mimeType), "Conversion complete.")
+    fun compress() {
+        val kb = _state.value.targetKb.toLongOrNull() ?: return message("Enter a valid target size.")
+        if (kb <= 0) return message("Target size must be greater than zero.")
+        process(ImageOperation.Compress(kb * 1024L), "Compression complete.")
+    }
+    internal val appContentResolver get() = getApplication<Application>().contentResolver
+
+    fun applyCropSelection(selection: CropSelection) {
+        if (_state.value.sourceUri == null) return message("Import an image first.")
+        if (selection.width <= 0 || selection.height <= 0) return message("Invalid crop selection.")
+        process(ImageOperation.Crop(selection.left, selection.top, selection.width, selection.height), "Crop complete.")
+    }
+
+    fun cropCenter() {
+        val current = _state.value
+        val width = current.width.toIntOrNull()
+        val height = current.height.toIntOrNull()
+        if (width == null || height == null || width <= 0 || height <= 0) return message("Enter valid crop width and height.")
+        val left = ((current.originalWidth - width) / 2).coerceAtLeast(0)
+        val top = ((current.originalHeight - height) / 2).coerceAtLeast(0)
+        if (left + width > current.originalWidth || top + height > current.originalHeight) return message("Crop size exceeds the original image.")
+        process(ImageOperation.Crop(left, top, width, height), "Crop complete.")
+    }
+    fun passport() = process(ImageOperation.PassportPhoto(), "Passport photo created.")
+    fun signature() = process(ImageOperation.ExtractSignature(), "Signature extracted.")
+    fun adjustColors() = process(ImageOperation.ColorAdjust(_state.value.brightness, _state.value.contrast, _state.value.saturation), "Image adjustment complete.")
+    fun setBrightness(value: Float) { _state.value = _state.value.copy(brightness = value) }
+    fun setContrast(value: Float) { _state.value = _state.value.copy(contrast = value) }
+    fun setSaturation(value: Float) { _state.value = _state.value.copy(saturation = value) }
+    fun resize() {
+        val current = _state.value
+        val width = current.width.toIntOrNull()
+        val height = current.height.toIntOrNull()
+        if (width == null || height == null || width <= 0 || height <= 0) return message("Enter valid width and height.")
+        process(ImageOperation.Resize(width, height), "Resize complete.")
+    }
+    private fun process(operation: ImageOperation, successMessage: String, metadataPolicy: org.techwithkaushik.imageforge.imageprocessor.MetadataPolicy = org.techwithkaushik.imageforge.imageprocessor.MetadataPolicy.PRESERVE_SUPPORTED) {
+        val current = _state.value
+        val uri = current.sourceUri ?: return message("Import an image first.")
+        viewModelScope.launch {
+            _state.value = current.copy(busy = true, message = null, outputUri = null)
+            val mime = resolver.getType(uri) ?: "image/jpeg"
+            when (val result = processor(ImageProcessingRequest(ImageInput(uri, mime), operation, metadataPolicy)) { progress ->
+                _state.value = _state.value.copy(progress = progress)
+            }) {
+                is ForgeResult.Success -> _state.value = _state.value.copy(
+                    busy = false,
+                    outputUri = result.value.uri,
+                    outputMimeType = result.value.metadata.mimeType,
+                    message = successMessage,
+                )
+                is ForgeResult.Failure -> _state.value = _state.value.copy(busy = false, message = "Processing failed: ${result.error}")
+            }
+        }
+    }
+    fun save() {
+        val output = _state.value.outputUri ?: return message("Process an image before saving.")
+        viewModelScope.launch {
+            _state.value = _state.value.copy(busy = true)
+            val result = storage.saveImage(
+                source = output,
+                destination = StorageDestination.Pictures,
+                displayName = "ImageForge-${System.currentTimeMillis()}${extensionForMime(_state.value.outputMimeType)}",
+                mimeType = _state.value.outputMimeType ?: "image/jpeg",
+            )
+            _state.value = _state.value.copy(
+                busy = false,
+                message = when (result) {
+                    is ForgeResult.Success -> "Saved to Pictures/ImageForge."
+                    is ForgeResult.Failure -> "Save failed: ${result.error}"
+                },
+            )
+        }
+    }
+
+    private fun extensionForMime(mimeType: String?): String = when (mimeType?.lowercase()) {
+        "image/png" -> ".png"
+        "image/webp" -> ".webp"
+        "application/pdf" -> ".pdf"
+        else -> ".jpg"
+    }
+
+    private fun message(value: String) {
+        _state.value = _state.value.copy(message = value)
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 public fun EditorScreen(
     imageUri: String? = null,
+    tool: ToolDefinition? = null,
     onBack: () -> Unit = {},
     onImport: () -> Unit = {},
 ) {
-    ForgeScreenSurface {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("Editor") },
-                    navigationIcon = {
-                        androidx.compose.material3.TextButton(onClick = onBack) {
-                            Text("Back")
-                        }
-                    },
-                )
+    val viewModel: EditorViewModel = viewModel()
+    val state by viewModel.state.collectAsState()
+    var showCropEditor by remember { mutableStateOf(false) }
+
+    LaunchedEffect(imageUri, tool) {
+        viewModel.initialize(imageUri?.let(Uri::parse), tool)
+    }
+
+    if (showCropEditor && state.sourceUri != null) {
+        CropEditorDialog(
+            resolver = viewModel.appContentResolver,
+            imageUri = state.sourceUri!!,
+            configuration = state.tool?.configuration?.crop ?: org.techwithkaushik.imageforge.common.CropConfiguration.flexible,
+            originalWidth = state.originalWidth,
+            originalHeight = state.originalHeight,
+            onDismiss = { showCropEditor = false },
+            onConfirm = { selection ->
+                showCropEditor = false
+                viewModel.applyCropSelection(selection)
             },
-        ) { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text("Editor", style = MaterialTheme.typography.headlineSmall)
-                if (imageUri == null) {
-                    Text(
-                        "Select an image to begin editing.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    ForgeActionCard(
-                        title = "Start with an image",
-                        description = "Choose an image from device storage. ImageForge keeps processing on-device.",
-                        actionLabel = "Import",
-                        onAction = onImport,
-                    )
-                } else {
-                    Text(
-                        "Image imported",
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                    Text(
-                        imageUri,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        "Image processing tools will use the core processing contract.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+        )
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(tool?.title ?: "Editor") },
+                navigationIcon = {
+                    androidx.compose.material3.TextButton(onClick = onBack) { Text("Back") }
+                },
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(20.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            if (state.sourceUri == null) {
+                Text("Select an image to begin.", style = MaterialTheme.typography.titleLarge)
+                Button(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
+                    Text("Import Image")
+                }
+            } else {
+                val currentTool = state.tool
+                if (currentTool != null &&
+                    currentTool.toolType == org.techwithkaushik.imageforge.common.ToolType.IMAGE &&
+                    currentTool.configuration.crop.mode != CropMode.DISABLED
+                ) {
+                    CommonCropContent(state, onOpenCrop = { showCropEditor = true })
+                }
+                when (currentTool?.family) {
+                    ProcessingFamily.RESIZE -> ResizeFamilyContent(state, viewModel)
+                    ProcessingFamily.COMPRESSION -> CompressionFamilyContent(state, viewModel)
+                    ProcessingFamily.CONVERSION -> ConversionFamilyContent(state, viewModel)
+                    ProcessingFamily.TRANSFORM -> TransformFamilyContent(state, viewModel)
+                    ProcessingFamily.CROP -> CropFamilyContent(state, viewModel)
+                    ProcessingFamily.PASSPORT_ID -> PassportFamilyContent(state, viewModel)
+                    ProcessingFamily.SIGNATURE -> SignatureFamilyContent(viewModel)
+                    ProcessingFamily.EFFECTS -> EffectsFamilyContent(state, viewModel)
+                    ProcessingFamily.OCR -> OcrFamilyContent(state, viewModel)
+                    ProcessingFamily.METADATA -> MetadataFamilyContent(state, viewModel)
+                    ProcessingFamily.PDF -> PdfFamilyContent(state, viewModel)
+                    else -> {
+                        Text(
+                            "This processing family is ready for connection.",
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                        Text("Family: ${state.tool?.family?.name ?: "UNKNOWN"}")
+                        Text("Tool: ${state.tool?.title ?: "Image Editor"}")
+                    }
                 }
             }
+
+            state.progress?.let {
+                Text("${it.completedSteps}/${it.totalSteps} — ${it.message ?: "Processing"}")
+                if (state.busy) CircularProgressIndicator()
+            }
+            state.message?.let {
+                Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommonCropContent(state: EditorUiState, onOpenCrop: () -> Unit) {
+    val crop = state.tool?.configuration?.crop ?: return
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Crop", style = MaterialTheme.typography.titleMedium)
+        Text(
+            if (crop.mode == CropMode.FIXED) {
+                "Fixed: ${crop.width} × ${crop.height} ${crop.unit.name.lowercase()}"
+            } else {
+                "Flexible crop: choose ratio, then zoom and position the image."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Button(onClick = onOpenCrop, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
+            Text("Crop Image")
+        }
+    }
+}
+@Composable
+private fun OcrFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "OCR", style = MaterialTheme.typography.headlineSmall)
+    Text("Offline OCR runs on-device; no image upload is required.")
+    Button(onClick = viewModel::recognizeText, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Extract Text") }
+    state.ocrText?.let { text ->
+        OutlinedTextField(value = text, onValueChange = {}, readOnly = true, label = { Text("Recognized text") }, modifier = Modifier.fillMaxWidth())
+    }
+}
+@Composable
+private fun PdfFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Image to PDF", style = MaterialTheme.typography.headlineSmall)
+    Text("Create an offline PDF from the selected image.")
+    Button(onClick = viewModel::imageToPdf, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Create PDF") }
+    if (state.outputUri != null) Button(onClick = viewModel::savePdf, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Save PDF to Downloads") }
+}
+@Composable
+private fun MetadataFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Metadata", style = MaterialTheme.typography.headlineSmall)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = viewModel::viewMetadata, modifier = Modifier.weight(1f)) { Text("View") }
+        Button(onClick = viewModel::removeMetadata, enabled = !state.busy, modifier = Modifier.weight(1f)) { Text("Remove") }
+    }
+}
+@Composable
+private fun CompressionFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Compression", style = MaterialTheme.typography.headlineSmall)
+    OutlinedTextField(value = state.targetKb, onValueChange = viewModel::updateTargetKb, label = { Text("Target size (KB)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+    Button(onClick = viewModel::compress, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Compress Image") }
+}
+
+@Composable
+private fun ConversionFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Conversion", style = MaterialTheme.typography.headlineSmall)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = { viewModel.convert("image/jpeg") }, modifier = Modifier.weight(1f)) { Text("JPG") }
+        Button(onClick = { viewModel.convert("image/png") }, modifier = Modifier.weight(1f)) { Text("PNG") }
+        Button(onClick = { viewModel.convert("image/webp") }, modifier = Modifier.weight(1f)) { Text("WEBP") }
+    }
+}
+
+@Composable
+private fun TransformFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Transform", style = MaterialTheme.typography.headlineSmall)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = { viewModel.setRotateDegrees(90); viewModel.rotate() }, modifier = Modifier.weight(1f)) { Text("Rotate 90°") }
+        Button(onClick = { viewModel.setRotateDegrees(180); viewModel.rotate() }, modifier = Modifier.weight(1f)) { Text("Rotate 180°") }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = { viewModel.setFlipHorizontal(true); viewModel.setFlipVertical(false); viewModel.flip() }, modifier = Modifier.weight(1f)) { Text("Flip H") }
+        Button(onClick = { viewModel.setFlipHorizontal(false); viewModel.setFlipVertical(true); viewModel.flip() }, modifier = Modifier.weight(1f)) { Text("Flip V") }
+    }
+}
+
+@Composable
+private fun CropFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Crop", style = MaterialTheme.typography.headlineSmall)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(value = state.width, onValueChange = viewModel::updateWidth, label = { Text("Crop width") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+        OutlinedTextField(value = state.height, onValueChange = viewModel::updateHeight, label = { Text("Crop height") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+    }
+    Button(onClick = viewModel::cropCenter, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Crop Center") }
+}
+
+@Composable
+private fun PassportFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Passport / ID Photo", style = MaterialTheme.typography.headlineSmall)
+    Text("Default preset: 35 × 45 mm at 300 DPI (413 × 531 px)")
+    Button(onClick = viewModel::passport, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Create Passport Photo") }
+}
+
+@Composable
+private fun SignatureFamilyContent(viewModel: EditorViewModel) {
+    Text("Signature", style = MaterialTheme.typography.headlineSmall)
+    Text("Detect dark ink, crop to the ink bounds and clean border noise.")
+    Button(onClick = viewModel::signature, enabled = true, modifier = Modifier.fillMaxWidth()) { Text("Extract Signature") }
+}
+
+@Composable
+private fun EffectsFamilyContent(state: EditorUiState, viewModel: EditorViewModel) {
+    Text(state.tool?.title ?: "Effects", style = MaterialTheme.typography.headlineSmall)
+    OutlinedTextField(value = state.brightness.toString(), onValueChange = { it.toFloatOrNull()?.let(viewModel::setBrightness) }, label = { Text("Brightness (-1 to 1)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = state.contrast.toString(), onValueChange = { it.toFloatOrNull()?.let(viewModel::setContrast) }, label = { Text("Contrast (0 to 2)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = state.saturation.toString(), onValueChange = { it.toFloatOrNull()?.let(viewModel::setSaturation) }, label = { Text("Saturation (0 to 2)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+    Button(onClick = viewModel::adjustColors, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Apply Effect") }
+}
+@Composable
+private fun ResizeFamilyContent(
+    state: EditorUiState,
+    viewModel: EditorViewModel,
+) {
+    Text(
+        state.tool?.title ?: "Resize Image",
+        style = MaterialTheme.typography.headlineSmall,
+    )
+    Text(
+        "Original: ${state.originalWidth} × ${state.originalHeight} px",
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        OutlinedTextField(
+            value = state.width,
+            onValueChange = viewModel::updateWidth,
+            label = { Text("Width (px)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedTextField(
+            value = state.height,
+            onValueChange = viewModel::updateHeight,
+            label = { Text("Height (px)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1f),
+        )
+    }
+    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Checkbox(
+            checked = state.keepAspectRatio,
+            onCheckedChange = viewModel::setKeepAspectRatio,
+        )
+        Text("Keep aspect ratio")
+    }
+    Button(
+        onClick = viewModel::resize,
+        enabled = !state.busy,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        if (state.busy) {
+            CircularProgressIndicator(
+                modifier = Modifier.padding(end = 8.dp),
+                strokeWidth = 2.dp,
+            )
+        }
+        Text(if (state.busy) "Resizing…" else "Resize Image")
+    }
+    if (state.outputUri != null) {
+        Button(
+            onClick = viewModel::save,
+            enabled = !state.busy,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Save to Pictures")
         }
     }
 }

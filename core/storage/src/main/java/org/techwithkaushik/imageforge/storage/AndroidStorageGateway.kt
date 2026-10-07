@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import java.io.FileInputStream
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -69,7 +70,7 @@ public class AndroidStorageGateway(
 
             val targetUri = (target as ForgeResult.Success).value
             try {
-                resolver.openInputStream(source).use { input ->
+                openSourceInputStream(source).use { input ->
                     if (input == null) {
                         return@withContext ForgeResult.Failure(ForgeError.StorageFailed("Unable to read the source image."))
                     }
@@ -141,6 +142,14 @@ public class AndroidStorageGateway(
 
     override fun hasPersistedTreePermission(treeUri: Uri): Boolean =
         resolver.persistedUriPermissions.any { it.uri == treeUri && it.isWritePermission }
+
+    private fun openSourceInputStream(source: Uri): java.io.InputStream? =
+        if (source.scheme.equals("file", ignoreCase = true)) {
+            val path = source.path ?: return null
+            runCatching { FileInputStream(path) }.getOrNull()
+        } else {
+            resolver.openInputStream(source)
+        }
 
     private fun createMediaStoreTarget(
         collection: Uri,
